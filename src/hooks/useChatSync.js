@@ -1,5 +1,5 @@
 // src/hooks/useChatSync.js
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { fetchServerInfo } from '../api/info';
 import { fetchUpdatedMessages } from '../api/messages';
 import { fetchAllParticipants, fetchUpdatedParticipants } from '../api/participants';
@@ -11,7 +11,9 @@ import useSessionStore from '../state/sessionStore';
 const SYNC_INTERVAL = 8000; // 8 seconds
 
 const useChatSync = () => {
-  // Zustand hooks — destructure only what’s actually used
+  const syncInProgress = useRef(false);
+  
+  // Zustand hooks — destructure only what's actually used
   const updateMessage = useMessageStore((s) => s.updateMessage);
   const clearMessages = useMessageStore((s) => s.clearMessages);
 
@@ -29,11 +31,21 @@ const useChatSync = () => {
     let interval;
 
     const syncData = async () => {
+      // Prevent overlapping sync calls
+      if (syncInProgress.current) {
+        console.warn('⏳ Sync already in progress, skipping...');
+        return;
+      }
+
+      syncInProgress.current = true;
+
       try {
         const serverInfo = await fetchServerInfo();
 
         if (serverInfo.sessionUuid !== sessionUuid) {
           console.warn('🔁 Session UUID changed — resetting state...');
+          
+          // Batch all clearing operations
           clearMessages();
           clearParticipants();
           clearSession();
@@ -41,24 +53,42 @@ const useChatSync = () => {
 
           const allParticipants = await fetchAllParticipants();
           setParticipants(allParticipants);
+          
+          syncInProgress.current = false;
           return;
         }
 
-        const updatedMessages = await fetchUpdatedMessages(lastUpdateTime);
-        updatedMessages.forEach(updateMessage);
+        // Fetch updates in parallel
+        const [updatedMessages, updatedParticipants] = await Promise.all([
+          fetchUpdatedMessages(lastUpdateTime),
+          fetchUpdatedParticipants(lastUpdateTime)
+        ]);
 
-        const updatedParticipants = await fetchUpdatedParticipants(lastUpdateTime);
-        updatedParticipants.forEach(updateParticipant);
+        // Batch message updates - avoid forEach for performance
+        if (updatedMessages.length > 0) {
+          updatedMessages.forEach(updateMessage);
+        }
+
+        // Batch participant updates
+        if (updatedParticipants.length > 0) {
+          updatedParticipants.forEach(updateParticipant);
+        }
 
         setLastUpdateTime(Date.now());
       } catch (err) {
         console.error('❌ Chat sync error:', err.message);
+      } finally {
+        syncInProgress.current = false;
       }
     };
 
     syncData(); // initial run
     interval = setInterval(syncData, SYNC_INTERVAL);
-    return () => clearInterval(interval);
+    
+    return () => {
+      clearInterval(interval);
+      syncInProgress.current = false;
+    };
   }, [
     sessionUuid,
     lastUpdateTime,
