@@ -1,26 +1,27 @@
-// src/api/messages.js
+
 import axios from 'axios';
 
 const BASE = 'https://dummy-chat-server.tribechat.com/api';
 
+// ✅ STANDARDIZED ERROR HANDLING:
 export const fetchLatestMessages = async () => {
   try {
     const res = await axios.get(`${BASE}/messages/latest`);
     return res.data;
   } catch (err) {
     console.error('❌ Failed to fetch latest messages:', err);
-    // Return empty array as fallback instead of throwing
-    return [];
+    // Throw error instead of returning empty array for consistency
+    throw new Error(`Failed to fetch messages: ${err.message}`);
   }
 };
 
 export const fetchUpdatedMessages = async (since) => {
   try {
     const res = await axios.get(`${BASE}/messages/updates/${since}`);
-    return res.data; // Array of updated TMessage
+    return res.data;
   } catch (err) {
     console.error('❌ Failed to fetch updated messages:', err);
-    // Return empty array as fallback
+    // Return empty array for non-critical updates
     return [];
   }
 };
@@ -31,6 +32,6 @@ export const sendMessage = async (text) => {
     return res.data;
   } catch (err) {
     console.error('❌ Failed to send message:', err);
-    throw err; // Re-throw for UI handling
+    throw new Error(`Failed to send message: ${err.message}`);
   }
 };

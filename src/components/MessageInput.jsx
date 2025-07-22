@@ -1,4 +1,4 @@
-// src/components/MessageInput.jsx
+
 import React, { useState } from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { IconSymbol } from '@/components/ui/IconSymbol';
@@ -9,18 +9,47 @@ const MessageInput = () => {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const addMessage = useMessageStore((s) => s.addMessage);
+  const updateMessage = useMessageStore((s) => s.updateMessage);
 
   const handleSend = async () => {
     if (!text.trim() || sending) return;
 
     setSending(true);
+    
+    // Create optimistic message
+    const tempMessage = {
+      uuid: `temp-${Date.now()}`,
+      text: text.trim(),
+      status: 'sending',
+      createdAt: new Date().toISOString(),
+      participant: { name: 'You' } // Placeholder
+    };
+    
+    // Optimistically add message
+    addMessage(tempMessage);
+    setText('');
+
     try {
       const newMessage = await sendMessage(text.trim());
-      addMessage(newMessage);
-      setText('');
+      // Replace temp message with real message
+      updateMessage({ ...newMessage, status: 'sent' });
     } catch (err) {
       console.error('Failed to send message:', err);
-      Alert.alert('Error', 'Failed to send message. Please try again.');
+      // Mark message as failed
+      updateMessage({ 
+        ...tempMessage, 
+        status: 'failed',
+        error: err.message 
+      });
+      
+      // Show user-friendly error
+      Alert.alert(
+        'Message Failed', 
+        'Your message could not be sent. Please check your connection and try again.',
+        [
+          { text: 'OK', style: 'default' }
+        ]
+      );
     } finally {
       setSending(false);
     }
