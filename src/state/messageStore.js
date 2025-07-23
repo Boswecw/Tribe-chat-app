@@ -14,6 +14,52 @@ import { persist } from 'zustand/middleware';
  * - Persistent storage (excluding temporary optimistic data)
  */
 
+// ✅ STORAGE ADAPTER - Fixes AsyncStorage issues on web
+const createStorageAdapter = () => {
+  // Web storage fallback
+  const webStorage = {
+    async getItem(key) {
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          return window.localStorage.getItem(key);
+        }
+        return null;
+      } catch (error) {
+        console.warn('Web storage getItem failed:', error);
+        return null;
+      }
+    },
+    async setItem(key, value) {
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem(key, value);
+        }
+      } catch (error) {
+        console.warn('Web storage setItem failed:', error);
+        // Silently fail - app continues working without persistence
+      }
+    },
+    async removeItem(key) {
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.removeItem(key);
+        }
+      } catch (error) {
+        console.warn('Web storage removeItem failed:', error);
+      }
+    },
+  };
+
+  // Return appropriate storage based on platform
+  if (typeof window !== 'undefined') {
+    // Web platform - use localStorage fallback
+    return webStorage;
+  } else {
+    // Native platform - use AsyncStorage
+    return AsyncStorage;
+  }
+};
+
 const useMessageStore = create(
   persist(
     (set, get) => ({
@@ -491,7 +537,7 @@ const useMessageStore = create(
     }),
     {
       name: 'chat-messages',
-      getStorage: () => AsyncStorage,
+      getStorage: createStorageAdapter, // ✅ UPDATED: Use storage adapter instead of direct AsyncStorage
       // Only persist the actual messages, not optimistic updates
       partialize: (state) => ({
         messages: state.messages,
