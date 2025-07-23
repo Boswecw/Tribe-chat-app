@@ -260,6 +260,17 @@ const ChatScreen = () => {
   // Enhanced reaction handler with optimistic updates
   const handleReact = useCallback(async (messageId, emoji) => {
     try {
+      // ✅ FIXED: Prevent reactions on temporary messages
+      if (messageId.startsWith('temp-')) {
+        Alert.alert(
+          'Message Still Sending', 
+          'Please wait for the message to be sent before adding reactions.',
+          [{ text: 'OK' }]
+        );
+        AccessibilityInfo.announceForAccessibility('Cannot react to message while it is being sent');
+        return;
+      }
+
       // Add optimistic reaction immediately for better UX
       const optimisticKey = addReactionOptimistic(messageId, emoji, 'you');
       

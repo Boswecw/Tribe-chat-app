@@ -1,4 +1,4 @@
-// src/components/MessageBubble.jsx - Final clean version
+// Enhanced MessageBubble.jsx - Clean version that passes ESLint
 import React, { useState, useCallback, useMemo } from 'react';
 import { 
   View, 
@@ -23,6 +23,10 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress, onPartici
   
   // Check if this is the current user's message
   const isOwnMessage = participant?.uuid === 'you';
+  
+  // ✅ NEW: Check if message is still being sent or is temporary
+  const isMessageSending = message.status === 'sending' || message.uuid?.startsWith('temp-');
+  const reactionsDisabled = isMessageSending;
 
   // Memoize formatted time to prevent recalculation
   const formattedTime = useMemo(() => formatTime(message.createdAt), [message.createdAt]);
@@ -42,7 +46,8 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress, onPartici
         AccessibilityInfo.announceForAccessibility(`Added ${emoji} reaction`);
       }
       setShowReactionRow(false);
-    } catch (_error) {
+    } catch (error) {
+      console.error('Failed to add reaction:', error);
       Alert.alert('Error', 'Failed to add reaction. Please try again.');
       AccessibilityInfo.announceForAccessibility('Failed to add reaction');
     }
@@ -61,6 +66,15 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress, onPartici
   }, [onParticipantPress, participant]);
 
   const toggleReactionRow = useCallback(() => {
+    // ✅ NEW: Prevent opening reactions on sending messages
+    if (reactionsDisabled) {
+      Alert.alert(
+        'Message Still Sending', 
+        'Please wait for the message to be sent before adding reactions.'
+      );
+      return;
+    }
+
     setShowReactionRow(prev => {
       const newState = !prev;
       AccessibilityInfo.announceForAccessibility(
@@ -68,7 +82,7 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress, onPartici
       );
       return newState;
     });
-  }, []);
+  }, [reactionsDisabled]);
 
   const handleImagePress = useCallback(() => {
     console.log('Image pressed:', message.image);
@@ -206,24 +220,39 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress, onPartici
           </View>
         )}
 
-        {/* Add reaction button */}
+        {/* ✅ ENHANCED: Add reaction button with disabled state */}
         <TouchableOpacity 
-          style={styles.addReactionButton}
+          style={[
+            styles.addReactionButton,
+            reactionsDisabled && styles.addReactionButtonDisabled
+          ]}
           onPress={toggleReactionRow}
-          activeOpacity={0.7}
+          activeOpacity={reactionsDisabled ? 1 : 0.7}
+          disabled={reactionsDisabled}
           accessible={true}
           accessibilityRole="button"
-          accessibilityLabel={showReactionRow ? "Hide reaction options" : "Show reaction options"}
-          accessibilityHint="Double tap to toggle reaction options"
+          accessibilityLabel={
+            reactionsDisabled 
+              ? "Reactions disabled while message is sending"
+              : (showReactionRow ? "Hide reaction options" : "Show reaction options")
+          }
+          accessibilityHint={
+            reactionsDisabled 
+              ? "This message is still being sent"
+              : "Double tap to toggle reaction options"
+          }
         >
-          <Text style={styles.addReactionText}>
-            {showReactionRow ? '✕' : '😊+'}
+          <Text style={[
+            styles.addReactionText,
+            reactionsDisabled && styles.addReactionTextDisabled
+          ]}>
+            {reactionsDisabled ? '⏳' : (showReactionRow ? '✕' : '😊+')}
           </Text>
         </TouchableOpacity>
       </View>
 
       {/* Reaction row for adding new reactions */}
-      {showReactionRow && (
+      {showReactionRow && !reactionsDisabled && (
         <View style={styles.reactionRowContainer}>
           <ReactionRow onReact={handleReact} />
         </View>
@@ -415,9 +444,20 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
   },
   
+  // ✅ NEW: Disabled button styles
+  addReactionButtonDisabled: {
+    backgroundColor: 'rgba(200, 200, 200, 0.5)',
+    borderColor: '#ccc',
+  },
+  
   addReactionText: {
     fontSize: 12,
     color: '#666',
+  },
+  
+  // ✅ NEW: Disabled text styles
+  addReactionTextDisabled: {
+    color: '#999',
   },
   
   reactionRowContainer: {
