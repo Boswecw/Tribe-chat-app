@@ -33,8 +33,6 @@ import { useAsyncOperation } from '../hooks/useAsyncOperation';
 import MessageGroup from '../components/MessageGroup';
 import MessageInput from '../components/MessageInput';
 import BottomSheet from '../components/BottomSheet';
-// TEMPORARY: Comment out ErrorBoundary until duplicate export is fixed
-// import ErrorBoundary from '../components/ErrorBoundary';
 
 // Constants imports
 import colors from '../constants/colors';
@@ -103,119 +101,122 @@ const ChatScreen = () => {
   // Refs
   const flatListRef = useRef(null);
   const retryTimeoutRef = useRef(null);
+  const prevMessageCountRef = useRef(0);
 
   // Custom hooks
   const { 
     loading: syncLoading, 
     error: syncError, 
-    execute: executeSyncOperation 
-  } = useAsyncOperation();
+    executeSyncOperation 
+  } = useChatSync();
+  
+  const { executeOperation: executeReactionOperation } = useAsyncOperation();
 
-  const { 
-    execute: executeReactionOperation 
-  } = useAsyncOperation();
-
-  // Start chat sync
-  const { isSyncing, retryCount, isConnected } = useChatSync();
-
-  // Update connection status based on sync state
-  useEffect(() => {
-    if (!isConnected) {
-      setConnectionStatus('disconnected');
-    } else if (isSyncing) {
-      setConnectionStatus('syncing');
-    } else {
-      setConnectionStatus('connected');
-    }
-  }, [isConnected, isSyncing]);
-
-  // Focus effect for screen active state
-  useFocusEffect(
-    useCallback(() => {
-      // Clear stale optimistic updates when screen becomes active
-      clearStaleOptimisticUpdates();
-      
-      // Announce screen to accessibility users
-      AccessibilityInfo.announceForAccessibility('Chat screen loaded');
-      
-      return () => {
-        // Cleanup when screen loses focus
-        if (retryTimeoutRef.current) {
-          clearTimeout(retryTimeoutRef.current);
-        }
-      };
-    }, [clearStaleOptimisticUpdates])
-  );
-
-  // Initial data loading
-  useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        await executeSyncOperation(
-          () => fetchLatestMessages(),
-          (data) => {
-            setMessages(data);
-            AccessibilityInfo.announceForAccessibility(
-              `Loaded ${data.length} messages`
-            );
-          },
-          (error) => {
-            console.error('Failed to load initial messages:', error);
-            Alert.alert(
-              'Connection Error', 
-              'Failed to load messages. Please check your connection and try again.',
-              [
-                { text: 'Retry', onPress: loadInitialData },
-                { text: 'Cancel', style: 'cancel' }
-              ]
-            );
-          }
-        );
-      } catch (_error) {
-        // Error already handled in execute function
-      }
-    };
-
-    if (sessionUuid) {
-      loadInitialData();
-    }
-  }, [sessionUuid, executeSyncOperation, setMessages]);
-
-  // Memoized grouped messages for performance
+  // Process and group messages
   const groupedMessages = useMemo(() => {
+    if (!messages || messages.length === 0) return [];
+    
     try {
-      return groupMessages(messages);
+      return groupMessages(messages, participants);
     } catch (error) {
       console.error('Error grouping messages:', error);
-      return messages; // Fallback to ungrouped messages
+      return [];
     }
-  }, [messages]);
+  }, [messages, participants]);
 
-  // Pull to refresh handler
+  // FIXED: Reverse messages for proper display order (newest at bottom)
+  const displayMessages = useMemo(() => {
+    return [...groupedMessages].reverse();
+  }, [groupedMessages]);
+
+  // FIXED: Auto-scroll to bottom when new messages arrive
+  const scrollToBottom = useCallback((animated = true) => {
+    if (flatListRef.current && displayMessages.length > 0) {
+      // Small delay to ensure content has rendered
+      setTimeout(() => {
+        try {
+          flatListRef.current?.scrollToEnd({ animated });
+        } catch (error) {
+          console.warn('Failed to scroll to bottom:', error);
+        }
+      }, 100);
+    }
+  }, [displayMessages.length]);
+
+  // FIXED: Effect to scroll to bottom on new messages
+  useEffect(() => {
+    const currentMessageCount = displayMessages.length;
+    const prevMessageCount = prevMessageCountRef.current;
+    
+    if (currentMessageCount > prevMessageCount && prevMessageCount > 0) {
+      // New message arrived, scroll to bottom
+      scrollToBottom(true);
+    } else if (currentMessageCount > 0 && prevMessageCount === 0) {
+      // Initial load, scroll to bottom without animation
+      scrollToBottom(false);
+    }
+    
+    prevMessageCountRef.current = currentMessageCount;
+  }, [displayMessages.length, scrollToBottom]);
+
+  // Initialize data on screen focus
+  useFocusEffect(
+    useCallback(() => {
+      if (sessionUuid && messages.length === 0) {
+        onRefresh();
+      }
+      
+      // Cleanup stale optimistic updates on focus
+      clearStaleOptimisticUpdates();
+      
+      return () => {
+        // Clear any retry timeouts
+        if (retryTimeoutRef.current) {
+          clearTimeout(retryTimeoutRef.current);
+          retryTimeoutRef.current = null;
+        }
+      };
+    }, [sessionUuid, messages.length, onRefresh, clearStaleOptimisticUpdates])
+  );
+
+  // Pull to refresh handler - FIXED: Now loads newer messages since list isn't inverted
   const onRefresh = useCallback(async () => {
+    if (refreshing) return;
+
     setRefreshing(true);
     try {
       await executeSyncOperation(
-        () => fetchLatestMessages(),
-        (data) => {
-          setMessages(data);
-          AccessibilityInfo.announceForAccessibility('Messages refreshed');
+        async () => {
+          const latestMessages = await fetchLatestMessages();
+          setMessages(latestMessages);
+          setConnectionStatus('connected');
+          
+          AccessibilityInfo.announceForAccessibility(
+            `Loaded ${latestMessages.length} messages`
+          );
+          
+          return latestMessages;
         },
-        (error) => {
-          console.error('Failed to refresh messages:', error);
-          Alert.alert('Refresh Failed', 'Unable to refresh messages. Please try again.');
-        }
+        'Failed to refresh messages. Please try again.'
       );
     } catch (_error) {
-      // Error already handled
+      setConnectionStatus('disconnected');
+      Alert.alert(
+        'Connection Error',
+        'Unable to refresh messages. Please check your internet connection.',
+        [
+          { text: 'OK' },
+          { text: 'Retry', onPress: () => onRefresh() }
+        ]
+      );
     } finally {
       setRefreshing(false);
     }
-  }, [executeSyncOperation, setMessages]);
+  }, [executeSyncOperation, setMessages, refreshing]);
 
-  // Load older messages (infinite scroll)
+  // FIXED: Load older messages (now loads from beginning since list isn't inverted)
   const loadOlderMessages = useCallback(async () => {
-    if (loadingOlder || !hasMoreMessages || groupedMessages.length === 0) {
+    if (loadingOlder || !hasMoreMessages || displayMessages.length === 0) {
       return;
     }
 
@@ -243,7 +244,7 @@ const ChatScreen = () => {
     } finally {
       setLoadingOlder(false);
     }
-  }, [loadingOlder, hasMoreMessages, groupedMessages, messages, setMessages]);
+  }, [loadingOlder, hasMoreMessages, displayMessages.length, messages, setMessages]);
 
   // Enhanced reaction handler with optimistic updates
   const handleReact = useCallback(async (messageId, emoji) => {
@@ -252,32 +253,25 @@ const ChatScreen = () => {
       const optimisticKey = addReactionOptimistic(messageId, emoji, 'you');
       
       if (!optimisticKey) {
-        // Reaction already exists or message not found
         return;
       }
 
-      // Announce to accessibility users
       AccessibilityInfo.announceForAccessibility(`Added ${emoji} reaction`);
 
       // Send reaction to server
       await executeReactionOperation(
         () => sendReaction(messageId, emoji),
         (serverResponse) => {
-          // Confirm optimistic update with server data
           confirmReaction(optimisticKey);
           
-          // Update with server response if different
           if (serverResponse && serverResponse.uuid === messageId) {
             updateMessage(serverResponse);
           }
         },
         (error) => {
           console.error('Failed to send reaction:', error);
-          
-          // Revert optimistic update on error
           revertReaction(optimisticKey);
           
-          // Show user-friendly error
           Alert.alert(
             'Reaction Failed', 
             'Unable to add reaction. Please try again.',
@@ -374,28 +368,26 @@ const ChatScreen = () => {
           <Text style={styles.connectionText}>
             ⚠️ Connection lost. Trying to reconnect...
           </Text>
-          {retryCount > 0 && (
-            <Text style={styles.retryText}>
-              Retry attempt {retryCount}/3
-            </Text>
-          )}
+          <Text style={styles.retryText}>
+            Pull down to refresh
+          </Text>
         </View>
       );
     }
     
-    if (connectionStatus === 'syncing') {
+    if (syncLoading) {
       return (
         <View style={styles.syncBanner}>
-          <ActivityIndicator size="small" color={colors.primary} />
+          <ActivityIndicator size="small" color={colors.background} />
           <Text style={styles.syncText}>Syncing messages...</Text>
         </View>
       );
     }
     
     return null;
-  }, [connectionStatus, retryCount]);
+  }, [connectionStatus, syncLoading]);
 
-  // Footer component for loading older messages
+  // Loading footer component
   const renderFooter = useCallback(() => {
     if (!loadingOlder) return null;
     
@@ -410,24 +402,26 @@ const ChatScreen = () => {
   // Empty state component
   const renderEmptyState = useCallback(() => (
     <View style={styles.emptyState}>
-      <Text style={styles.emptyStateTitle}>No messages yet</Text>
+      <Text style={styles.emptyStateTitle}>Welcome to the chat!</Text>
       <Text style={styles.emptyStateSubtitle}>
-        Start a conversation by sending a message
+        Start a conversation by sending your first message below.
       </Text>
     </View>
   ), []);
 
   // Error state component
   const renderErrorState = useCallback(() => {
-    if (!syncError) return null;
-    
     return (
       <View style={styles.errorState}>
-        <Text style={styles.errorTitle}>Unable to load messages</Text>
-        <Text style={styles.errorMessage}>{syncError}</Text>
+        <Text style={styles.errorTitle}>
+          Unable to load messages
+        </Text>
+        <Text style={styles.errorMessage}>
+          {syncError?.message || 'Something went wrong while loading messages.'}
+        </Text>
         <TouchableOpacity 
           style={styles.retryButton}
-          onPress={() => window.location?.reload?.() || onRefresh()}
+          onPress={() => onRefresh()}
           accessible={true}
           accessibilityRole="button"
           accessibilityLabel="Retry loading messages"
@@ -448,10 +442,10 @@ const ChatScreen = () => {
           {/* Error state */}
           {syncError && renderErrorState()}
           
-          {/* Messages list */}
+          {/* Messages list - FIXED: No longer inverted */}
           <FlatList
             ref={flatListRef}
-            data={groupedMessages}
+            data={displayMessages} // Using reversed data
             renderItem={renderItem}
             keyExtractor={keyExtractor}
             getItemLayout={getItemLayout}
@@ -463,24 +457,21 @@ const ChatScreen = () => {
             windowSize={10}
             initialNumToRender={15}
             
-            // Maintain scroll position when new messages arrive
-            maintainVisibleContentPosition={{
-              minIndexForVisible: 0,
-              autoscrollToTopThreshold: 100,
-            }}
+            // FIXED: Auto-scroll behavior for new messages
+            onContentSizeChange={scrollToBottom}
+            onLayout={() => scrollToBottom(false)}
             
-            // Inverted for chat-like behavior (newest at bottom)
-            inverted={true}
+            // REMOVED: inverted={true} - This was causing the mirroring!
             
             // Styling
             style={styles.messagesList}
             contentContainerStyle={[
               styles.messagesListContent,
-              groupedMessages.length === 0 && styles.messagesListEmpty
+              displayMessages.length === 0 && styles.messagesListEmpty
             ]}
             showsVerticalScrollIndicator={false}
             
-            // Pull to refresh
+            // FIXED: Pull to refresh now loads newer messages (normal behavior)
             refreshControl={
               <RefreshControl 
                 refreshing={refreshing} 
@@ -490,7 +481,7 @@ const ChatScreen = () => {
               />
             }
             
-            // Infinite scroll
+            // FIXED: Load older messages when scrolling to top (normal behavior)
             onEndReached={loadOlderMessages}
             onEndReachedThreshold={0.1}
             
@@ -534,28 +525,18 @@ const ChatScreen = () => {
                 <View style={styles.participantsList}>
                   {reactionBottomSheet.reaction.participants?.map((participantId, index) => {
                     const participant = participants.find(p => p.uuid === participantId) || 
-                                     { uuid: participantId, name: participantId === 'you' ? 'You' : `User ${participantId}` };
+                                     { uuid: participantId, name: participantId === 'you' ? 'You' : 'Unknown' };
                     
                     return (
-                      <TouchableOpacity
-                        key={index}
-                        style={styles.participantItem}
-                        onPress={() => {
-                          closeReactionBottomSheet();
-                          handleParticipantPress(participant);
-                        }}
-                        accessible={true}
-                        accessibilityRole="button"
-                        accessibilityLabel={`View ${participant.name} profile`}
-                      >
+                      <View key={`${participantId}-${index}`} style={styles.participantItem}>
                         <Text style={styles.participantName}>
                           {participant.name}
                         </Text>
-                      </TouchableOpacity>
+                      </View>
                     );
                   }) || (
                     <Text style={styles.noParticipantsText}>
-                      No participant details available
+                      No reaction data available
                     </Text>
                   )}
                 </View>
@@ -575,18 +556,17 @@ const ChatScreen = () => {
               <>
                 <View style={styles.participantHeader}>
                   <Text style={styles.participantDisplayName}>
-                    {participantBottomSheet.participant.name}
+                    {participantBottomSheet.participant.name || 'Unknown User'}
                   </Text>
                   <Text style={styles.participantId}>
                     ID: {participantBottomSheet.participant.uuid}
                   </Text>
                 </View>
                 
-                {/* Additional participant info could go here */}
                 <View style={styles.participantInfo}>
                   <Text style={styles.participantInfoText}>
-                    {participantBottomSheet.participant.uuid === 'you' 
-                      ? 'This is you!' 
+                    {participantBottomSheet.participant.uuid === 'you' ? 
+                      'This is you!' 
                       : 'Chat participant'
                     }
                   </Text>
