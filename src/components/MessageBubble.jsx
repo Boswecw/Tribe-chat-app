@@ -1,81 +1,191 @@
+// Enhanced MessageBubble with performance optimizations
 // src/components/MessageBubble.jsx
-import React, { useState } from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useCallback, useMemo } from 'react';
+import { View, Text, Image, StyleSheet, TouchableOpacity, Alert, AccessibilityInfo } from 'react-native';
 import Avatar from './Avatar';
 import ReactionRow from './ReactionRow';
 import { formatTime } from '../utils/formatDate';
+import { useTheme } from '../constants/theme';
+import { createStyles } from './MessageBubble.styles';
 
-const MessageBubble = ({ message, isGrouped, onReact, onReactionPress }) => {
+const MessageBubble = React.memo(({ message, isGrouped, onReact, onReactionPress }) => {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [showReactionRow, setShowReactionRow] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
+  
   const participant = message.participant;
   const displayName = participant?.name || 'Unknown';
   const hasReactions = message.reactions && message.reactions.length > 0;
+  const isOwnMessage = participant?.uuid === 'you';
 
-  const handleReact = async (emoji) => {
+  // Memoize formatted time to prevent recalculation
+  const formattedTime = useMemo(() => formatTime(message.createdAt), [message.createdAt]);
+  
+  // Memoize accessibility label
+  const accessibilityLabel = useMemo(() => {
+    let label = `Message from ${displayName}, sent at ${formattedTime}: ${message.text}`;
+    if (message.editedAt) label += ' (edited)';
+    if (hasReactions) label += ` with ${message.reactions.length} reactions`;
+    return label;
+  }, [displayName, formattedTime, message.text, message.editedAt, hasReactions, message.reactions]);
+
+  const handleReact = useCallback(async (emoji) => {
     try {
       if (onReact) {
         await onReact(message.uuid, emoji);
+        // Announce reaction to screen readers
+        AccessibilityInfo.announceForAccessibility(`Added ${emoji} reaction`);
       }
-      setShowReactionRow(false); // Hide reaction row after reacting
-    } catch (_error) {
+      setShowReactionRow(false);
+    } catch (error) {
       Alert.alert('Error', 'Failed to add reaction. Please try again.');
+      AccessibilityInfo.announceForAccessibility('Failed to add reaction');
     }
-  };
+  }, [onReact, message.uuid]);
 
-  const handleReactionPress = (reaction) => {
+  const handleReactionPress = useCallback((reaction) => {
     if (onReactionPress) {
       onReactionPress(message.uuid, reaction);
     }
-  };
+  }, [onReactionPress, message.uuid]);
 
-  const toggleReactionRow = () => {
-    setShowReactionRow(!showReactionRow);
-  };
+  const toggleReactionRow = useCallback(() => {
+    setShowReactionRow(prev => {
+      const newState = !prev;
+      AccessibilityInfo.announceForAccessibility(
+        newState ? 'Reaction options shown' : 'Reaction options hidden'
+      );
+      return newState;
+    });
+  }, []);
 
-  const handleImagePress = () => {
-    // TODO: Implement image preview modal
+  const handleImagePress = useCallback(() => {
     console.log('Image pressed:', message.image);
-  };
+    AccessibilityInfo.announceForAccessibility('Opening image preview');
+  }, [message.image]);
+
+  const handleImageLoad = useCallback(() => {
+    setImageLoading(false);
+  }, []);
+
+  const handleImageError = useCallback(() => {
+    setImageLoading(false);
+    AccessibilityInfo.announceForAccessibility('Failed to load image');
+  }, []);
 
   return (
-    <View style={{ marginTop: isGrouped ? 2 : 12, paddingHorizontal: 12 }}>
+    <View 
+      style={[
+        styles.container,
+        isGrouped ? styles.containerGrouped : styles.containerNotGrouped,
+        isOwnMessage && { alignSelf: 'flex-end' }
+      ]}
+      accessible={true}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole="text"
+    >
       {!isGrouped && (
         <View style={styles.header}>
           <Avatar participant={participant} size={32} />
-          <Text style={styles.name}>{displayName}</Text>
-          <Text style={styles.time}>{formatTime(message.createdAt)}</Text>
+          <Text 
+            style={styles.name}
+            accessible={true}
+            accessibilityRole="text"
+            accessibilityLabel={`Message from ${displayName}`}
+          >
+            {displayName}
+          </Text>
+          <Text 
+            style={styles.time}
+            accessible={true}
+            accessibilityLabel={`Sent at ${formattedTime}`}
+          >
+            {formattedTime}
+          </Text>
         </View>
       )}
 
-      <View style={styles.bubble}>
-        <Text style={styles.text}>{message.text}</Text>
+      <View style={[
+        styles.bubble,
+        isOwnMessage && styles.bubbleOwn
+      ]}>
+        <Text 
+          style={[
+            styles.text,
+            isOwnMessage && styles.textOwn
+          ]}
+          selectable={true}
+          accessible={true}
+          accessibilityRole="text"
+        >
+          {message.text}
+        </Text>
         
         {message.image && (
-          <TouchableOpacity onPress={handleImagePress} activeOpacity={0.8}>
+          <TouchableOpacity 
+            onPress={handleImagePress} 
+            activeOpacity={0.8}
+            accessible={true}
+            accessibilityRole="button"
+            accessibilityLabel="View image attachment"
+            accessibilityHint="Double tap to open image preview"
+          >
             <Image 
               source={{ uri: message.image }} 
               style={styles.image}
               resizeMode="cover"
+              onLoad={handleImageLoad}
+              onError={handleImageError}
+              accessible={true}
+              accessibilityIgnoresInvertColors={true}
             />
+            {imageLoading && (
+              <View style={styles.imageLoadingOverlay}>
+                <Text style={styles.imageLoadingText}>Loading...</Text>
+              </View>
+            )}
           </TouchableOpacity>
         )}
         
         {message.editedAt && (
-          <Text style={styles.edited}>(edited)</Text>
+          <Text 
+            style={styles.edited}
+            accessible={true}
+            accessibilityLabel="This message was edited"
+          >
+            (edited)
+          </Text>
         )}
 
         {/* Display existing reactions */}
         {hasReactions && (
-          <View style={styles.existingReactions}>
+          <View 
+            style={styles.existingReactions}
+            accessible={true}
+            accessibilityLabel={`${message.reactions.length} reactions on this message`}
+          >
             {message.reactions.map((reaction, index) => (
               <TouchableOpacity
                 key={`${reaction.emoji}-${index}`}
-                style={styles.reactionBubble}
+                style={[
+                  styles.reactionBubble,
+                  reaction.isOwnReaction && styles.reactionBubbleActive
+                ]}
                 onPress={() => handleReactionPress(reaction)}
                 activeOpacity={0.7}
+                accessible={true}
+                accessibilityRole="button"
+                accessibilityLabel={`${reaction.emoji} reaction, ${reaction.count} ${reaction.count === 1 ? 'person' : 'people'}`}
+                accessibilityHint="Double tap to see who reacted"
               >
                 <Text style={styles.reactionEmoji}>{reaction.emoji}</Text>
-                <Text style={styles.reactionCount}>{reaction.count}</Text>
+                <Text style={[
+                  styles.reactionCount,
+                  reaction.isOwnReaction && styles.reactionCountActive
+                ]}>
+                  {reaction.count}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -86,8 +196,10 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress }) => {
           style={styles.addReactionButton}
           onPress={toggleReactionRow}
           activeOpacity={0.7}
-          accessibilityLabel={showReactionRow ? "Hide reaction options" : "Show reaction options"}
+          accessible={true}
           accessibilityRole="button"
+          accessibilityLabel={showReactionRow ? "Hide reaction options" : "Show reaction options"}
+          accessibilityHint="Double tap to toggle reaction options"
         >
           <Text style={styles.addReactionText}>
             {showReactionRow ? '✕' : '😊+'}
@@ -104,13 +216,16 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress }) => {
 
       {/* Reply to message functionality */}
       {message.replyToMessage && (
-        <View style={styles.replyToContainer}>
-          <View style={styles.replyToLine} />
-          <View style={styles.replyToContent}>
-            <Text style={styles.replyToLabel}>
+        <View 
+          style={styles.replyContainer}
+          accessible={true}
+          accessibilityLabel={`Replying to ${message.replyToMessage.participant?.name || 'Unknown'}: ${message.replyToMessage.text}`}
+        >
+          <View style={styles.replyContent}>
+            <Text style={styles.replyLabel}>
               Replying to {message.replyToMessage.participant?.name || 'Unknown'}
             </Text>
-            <Text style={styles.replyToText} numberOfLines={2}>
+            <Text style={styles.replyText} numberOfLines={2}>
               {message.replyToMessage.text}
             </Text>
           </View>
@@ -120,11 +235,15 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress }) => {
       {/* Message status indicator */}
       {message.status && message.status !== 'sent' && (
         <View style={styles.statusContainer}>
-          <Text style={[
-            styles.statusText, 
-            message.status === 'failed' && styles.statusFailed,
-            message.status === 'sending' && styles.statusSending
-          ]}>
+          <Text 
+            style={[
+              styles.statusText, 
+              message.status === 'failed' && styles.statusFailed,
+              message.status === 'sending' && styles.statusSending
+            ]}
+            accessible={true}
+            accessibilityLabel={`Message status: ${message.status}`}
+          >
             {message.status === 'sending' && '⏳ Sending...'}
             {message.status === 'failed' && '❌ Failed to send'}
             {message.status === 'deleted' && '🗑️ Deleted'}
@@ -133,144 +252,77 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress }) => {
       )}
     </View>
   );
-};
-
-const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 2,
-    gap: 8,
-  },
-  name: {
-    fontWeight: '600',
-    marginLeft: 6,
-    flexShrink: 1,
-  },
-  time: {
-    marginLeft: 'auto',
-    fontSize: 10,
-    color: '#888',
-  },
-  bubble: {
-    backgroundColor: '#f0f0f0',
-    borderRadius: 8,
-    padding: 8,
-    position: 'relative',
-  },
-  text: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  edited: {
-    fontSize: 10,
-    color: '#888',
-    marginTop: 4,
-    fontStyle: 'italic',
-  },
-  image: {
-    marginTop: 8,
-    height: 150,
-    borderRadius: 6,
-    backgroundColor: '#f5f5f5',
-  },
-  existingReactions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 8,
-    gap: 6,
-  },
-  reactionBubble: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#e3f2fd',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: '#90caf9',
-  },
-  reactionEmoji: {
-    fontSize: 12,
-    marginRight: 2,
-  },
-  reactionCount: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#1976d2',
-  },
-  addReactionButton: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 12,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  addReactionText: {
-    fontSize: 12,
-    color: '#666',
-  },
-  reactionRowContainer: {
-    marginTop: 4,
-    marginLeft: 8,
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  replyToContainer: {
-    flexDirection: 'row',
-    marginTop: 4,
-    marginLeft: 8,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 6,
-    padding: 8,
-  },
-  replyToLine: {
-    width: 3,
-    backgroundColor: '#007AFF',
-    borderRadius: 2,
-    marginRight: 8,
-  },
-  replyToContent: {
-    flex: 1,
-  },
-  replyToLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#007AFF',
-    marginBottom: 2,
-  },
-  replyToText: {
-    fontSize: 12,
-    color: '#666',
-    lineHeight: 16,
-  },
-  statusContainer: {
-    marginTop: 4,
-    alignItems: 'flex-end',
-  },
-  statusText: {
-    fontSize: 10,
-    color: '#888',
-  },
-  statusFailed: {
-    color: '#dc3545',
-  },
-  statusSending: {
-    color: '#6c757d',
-  },
 });
 
+MessageBubble.displayName = 'MessageBubble';
+
 export default MessageBubble;
+
+// Enhanced FlatList optimization for ChatScreen
+// src/components/OptimizedMessageList.jsx
+import React, { useCallback, useMemo } from 'react';
+import { FlatList } from 'react-native';
+import MessageGroup from './MessageGroup';
+
+const ITEM_HEIGHT = 80; // Approximate height for getItemLayout
+
+const OptimizedMessageList = React.memo(({ 
+  messages, 
+  onReact, 
+  onReactionPress, 
+  refreshing, 
+  onRefresh,
+  onEndReached 
+}) => {
+  
+  const keyExtractor = useCallback((item) => item.uuid, []);
+  
+  const renderItem = useCallback(({ item }) => (
+    <MessageGroup 
+      group={item} 
+      onReact={onReact}
+      onReactionPress={onReactionPress}
+    />
+  ), [onReact, onReactionPress]);
+
+  const getItemLayout = useCallback((data, index) => ({
+    length: ITEM_HEIGHT,
+    offset: ITEM_HEIGHT * index,
+    index,
+  }), []);
+
+  // Memoize FlatList props for better performance
+  const flatListProps = useMemo(() => ({
+    data: messages,
+    renderItem,
+    keyExtractor,
+    getItemLayout,
+    removeClippedSubviews: true,
+    maxToRenderPerBatch: 10,
+    updateCellsBatchingPeriod: 50,
+    windowSize: 10,
+    initialNumToRender: 15,
+    maintainVisibleContentPosition: {
+      minIndexForVisible: 0,
+      autoscrollToTopThreshold: 100,
+    },
+    inverted: true,
+    showsVerticalScrollIndicator: false,
+    contentContainerStyle: { padding: 12, paddingBottom: 20 },
+  }), [messages, renderItem, keyExtractor, getItemLayout]);
+
+  return (
+    <FlatList
+      {...flatListProps}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+      onEndReached={onEndReached}
+      onEndReachedThreshold={0.1}
+    />
+  );
+});
+
+OptimizedMessageList.displayName = 'OptimizedMessageList';
+
+export default OptimizedMessageList;
