@@ -9,8 +9,7 @@ import {
   Alert,
   AccessibilityInfo,
   ActivityIndicator,
-  TouchableOpacity,
-  Dimensions
+  TouchableOpacity
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -34,13 +33,42 @@ import { useAsyncOperation } from '../hooks/useAsyncOperation';
 import MessageGroup from '../components/MessageGroup';
 import MessageInput from '../components/MessageInput';
 import BottomSheet from '../components/BottomSheet';
-import ErrorBoundary from '../components/ErrorBoundary';
+// TEMPORARY: Comment out ErrorBoundary until duplicate export is fixed
+// import ErrorBoundary from '../components/ErrorBoundary';
 
 // Constants imports
 import colors from '../constants/colors';
 
-const { height: screenHeight } = Dimensions.get('window');
 const ITEM_APPROXIMATE_HEIGHT = 100; // Approximate height for performance optimization
+
+// Simple ErrorBoundary fallback component (temporary)
+class SimpleErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('ErrorBoundary caught an error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 10 }}>Something went wrong</Text>
+          <Text style={{ textAlign: 'center', color: '#666' }}>Please try refreshing the app</Text>
+        </View>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 const ChatScreen = () => {
   // Zustand store hooks
@@ -84,8 +112,6 @@ const ChatScreen = () => {
   } = useAsyncOperation();
 
   const { 
-    loading: reactionLoading, 
-    error: reactionError, 
     execute: executeReactionOperation 
   } = useAsyncOperation();
 
@@ -145,7 +171,7 @@ const ChatScreen = () => {
             );
           }
         );
-      } catch (error) {
+      } catch (_error) {
         // Error already handled in execute function
       }
     };
@@ -180,7 +206,7 @@ const ChatScreen = () => {
           Alert.alert('Refresh Failed', 'Unable to refresh messages. Please try again.');
         }
       );
-    } catch (error) {
+    } catch (_error) {
       // Error already handled
     } finally {
       setRefreshing(false);
@@ -195,8 +221,8 @@ const ChatScreen = () => {
 
     setLoadingOlder(true);
     try {
-      const oldestMessage = groupedMessages[groupedMessages.length - 1];
       // TODO: Implement fetchOlderMessages API call
+      // const oldestMessage = groupedMessages[groupedMessages.length - 1];
       // const olderMessages = await fetchOlderMessages(oldestMessage.uuid);
       
       // Simulate loading for now
@@ -413,7 +439,7 @@ const ChatScreen = () => {
   }, [syncError, onRefresh]);
 
   return (
-    <ErrorBoundary>
+    <SimpleErrorBoundary>
       <SafeAreaView style={styles.container}>
         <View style={styles.chatContainer}>
           {/* Connection status header */}
@@ -570,7 +596,7 @@ const ChatScreen = () => {
           </View>
         </BottomSheet>
       </SafeAreaView>
-    </ErrorBoundary>
+    </SimpleErrorBoundary>
   );
 };
 
