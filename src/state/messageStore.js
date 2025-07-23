@@ -69,7 +69,7 @@ const useMessageStore = create(
         const now = Date.now();
         const staleThreshold = 30000; // 30 seconds
         
-        for (const [tempId] of optimisticMessages.entries()) {
+        for (const tempId of optimisticMessages.keys()) {
           const timestamp = parseInt(tempId.split('-').pop());
           if (now - timestamp > staleThreshold) {
             optimisticMessages.delete(tempId);
