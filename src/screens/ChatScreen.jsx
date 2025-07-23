@@ -159,26 +159,6 @@ const ChatScreen = () => {
     prevMessageCountRef.current = currentMessageCount;
   }, [displayMessages.length, scrollToBottom]);
 
-  // Initialize data on screen focus
-  useFocusEffect(
-    useCallback(() => {
-      if (sessionUuid && messages.length === 0) {
-        onRefresh();
-      }
-      
-      // Cleanup stale optimistic updates on focus
-      clearStaleOptimisticUpdates();
-      
-      return () => {
-        // Clear any retry timeouts
-        if (retryTimeoutRef.current) {
-          clearTimeout(retryTimeoutRef.current);
-          retryTimeoutRef.current = null;
-        }
-      };
-    }, [sessionUuid, messages.length, onRefresh, clearStaleOptimisticUpdates])
-  );
-
   // Pull to refresh handler - FIXED: Now loads newer messages since list isn't inverted
   const onRefresh = useCallback(async () => {
     if (refreshing) return;
@@ -213,6 +193,26 @@ const ChatScreen = () => {
       setRefreshing(false);
     }
   }, [executeSyncOperation, setMessages, refreshing]);
+
+  // Initialize data on screen focus
+  useFocusEffect(
+    useCallback(() => {
+      if (sessionUuid && messages.length === 0) {
+        onRefresh();
+      }
+      
+      // Cleanup stale optimistic updates on focus
+      clearStaleOptimisticUpdates();
+      
+      return () => {
+        // Clear any retry timeouts
+        if (retryTimeoutRef.current) {
+          clearTimeout(retryTimeoutRef.current);
+          retryTimeoutRef.current = null;
+        }
+      };
+    }, [sessionUuid, messages.length, onRefresh, clearStaleOptimisticUpdates])
+  );
 
   // FIXED: Load older messages (now loads from beginning since list isn't inverted)
   const loadOlderMessages = useCallback(async () => {
