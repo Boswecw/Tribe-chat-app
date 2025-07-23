@@ -16,6 +16,8 @@ const useChatSync = () => {
   const syncInProgress = useRef(false);
   const retryCount = useRef(0);
   const syncInterval = useRef(null);
+  const retryTimeoutRef = useRef(null);
+  const isMountedRef = useRef(true);
   
   // Message store actions
   const setMessages = useMessageStore((s) => s.setMessages);
@@ -27,11 +29,22 @@ const useChatSync = () => {
   const clearParticipants = useParticipantStore((s) => s.clearParticipants);
 
   // Session store state and actions
-  const sessionUuid = useSessionStore((s) => s.sessionUuid);
   const lastUpdateTime = useSessionStore((s) => s.lastUpdateTime);
   const setSession = useSessionStore((s) => s.setSession);
   const setLastUpdateTime = useSessionStore((s) => s.setLastUpdateTime);
   const clearSession = useSessionStore((s) => s.clearSession);
+
+  // Cleanup function for all timers and timeouts
+  const clearAllTimers = useCallback(() => {
+    if (syncInterval.current) {
+      clearInterval(syncInterval.current);
+      syncInterval.current = null;
+    }
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+  }, []);
 
   const resetAppState = useCallback(() => {
     console.log('🔄 Resetting application state...');
@@ -47,8 +60,10 @@ const useChatSync = () => {
 
     try {
       const allParticipants = await fetchAllParticipants();
-      setParticipants(allParticipants);
-      console.log('✅ Participants loaded for new session');
+      if (isMountedRef.current) {
+        setParticipants(allParticipants);
+        console.log('✅ Participants loaded for new session');
+      }
     } catch (err) {
       console.error('❌ Failed to fetch participants for new session:', err);
       // Don't throw - allow sync to continue
@@ -68,6 +83,9 @@ const useChatSync = () => {
           return []; // Return empty array on failure
         })
       ]);
+
+      // Only proceed if component is still mounted
+      if (!isMountedRef.current) return;
 
       // Apply message updates
       if (updatedMessages.length > 0) {
@@ -97,10 +115,13 @@ const useChatSync = () => {
     }
   }, [updateMessage, updateParticipant, setLastUpdateTime]);
 
+  // Store the latest syncData function in a ref to avoid stale closures
+  const syncDataRef = useRef();
+
   const syncData = useCallback(async () => {
-    // Prevent overlapping sync calls
-    if (syncInProgress.current) {
-      console.warn('⏳ Sync already in progress, skipping...');
+    // Prevent overlapping sync calls or calls after unmount
+    if (syncInProgress.current || !isMountedRef.current) {
+      console.warn('⏳ Sync already in progress or component unmounted, skipping...');
       return;
     }
 
@@ -116,11 +137,19 @@ const useChatSync = () => {
         
         // Implement exponential backoff for retries
         retryCount.current++;
-        if (retryCount.current < MAX_RETRY_ATTEMPTS) {
-          console.log(`🔄 Retrying in ${RETRY_DELAY}ms (attempt ${retryCount.current}/${MAX_RETRY_ATTEMPTS})`);
-          setTimeout(() => {
-            syncInProgress.current = false;
-            syncData();
+        if (retryCount.current < MAX_RETRY_ATTEMPTS && isMountedRef.current) {
+          console.log(`🔄 Retrying in ${RETRY_DELAY * retryCount.current}ms (attempt ${retryCount.current}/${MAX_RETRY_ATTEMPTS})`);
+          
+          // Clear any existing retry timeout
+          if (retryTimeoutRef.current) {
+            clearTimeout(retryTimeoutRef.current);
+          }
+          
+          retryTimeoutRef.current = setTimeout(() => {
+            if (isMountedRef.current) {
+              syncInProgress.current = false;
+              syncDataRef.current?.();
+            }
           }, RETRY_DELAY * retryCount.current);
           return;
         } else {
@@ -130,19 +159,26 @@ const useChatSync = () => {
         }
       }
 
+      // Double-check mount status and get fresh session UUID
+      if (!isMountedRef.current) return;
+      
+      const currentSessionUuid = useSessionStore.getState().sessionUuid;
+      
       // Check if session has changed
-      if (serverInfo.sessionUuid !== sessionUuid) {
+      if (serverInfo.sessionUuid !== currentSessionUuid) {
         await handleSessionChange(serverInfo);
         return; // Exit early after session change
       }
 
       // Perform batch updates if we have a valid session
-      if (sessionUuid && lastUpdateTime > 0) {
+      if (currentSessionUuid && lastUpdateTime > 0) {
         await performBatchUpdates(lastUpdateTime);
-      } else if (sessionUuid) {
+      } else if (currentSessionUuid) {
         // First time sync - just update timestamp
-        setLastUpdateTime(Date.now());
-        console.log('🆕 Initial sync - timestamp set');
+        if (isMountedRef.current) {
+          setLastUpdateTime(Date.now());
+          console.log('🆕 Initial sync - timestamp set');
+        }
       }
       
     } catch (err) {
@@ -150,41 +186,59 @@ const useChatSync = () => {
       
       // Implement retry logic for general sync errors
       retryCount.current++;
-      if (retryCount.current < MAX_RETRY_ATTEMPTS) {
+      if (retryCount.current < MAX_RETRY_ATTEMPTS && isMountedRef.current) {
         console.log(`🔄 Retrying sync in ${RETRY_DELAY}ms`);
-        setTimeout(() => {
-          syncInProgress.current = false;
-          syncData();
+        
+        // Clear any existing retry timeout
+        if (retryTimeoutRef.current) {
+          clearTimeout(retryTimeoutRef.current);
+        }
+        
+        retryTimeoutRef.current = setTimeout(() => {
+          if (isMountedRef.current) {
+            syncInProgress.current = false;
+            syncDataRef.current?.();
+          }
         }, RETRY_DELAY);
         return;
       } else {
         retryCount.current = 0; // Reset for next cycle
       }
     } finally {
-      syncInProgress.current = false;
+      if (isMountedRef.current) {
+        syncInProgress.current = false;
+      }
     }
-  }, [sessionUuid, lastUpdateTime, handleSessionChange, performBatchUpdates, setLastUpdateTime]);
+  }, [lastUpdateTime, handleSessionChange, performBatchUpdates, setLastUpdateTime]);
+
+  // Update the ref whenever syncData changes
+  useEffect(() => {
+    syncDataRef.current = syncData;
+  }, [syncData]);
 
   const startSyncInterval = useCallback(() => {
     // Clear any existing interval
-    if (syncInterval.current) {
-      clearInterval(syncInterval.current);
-    }
+    clearAllTimers();
+    
+    if (!isMountedRef.current) return;
     
     // Start new interval
-    syncInterval.current = setInterval(syncData, SYNC_INTERVAL);
+    syncInterval.current = setInterval(() => {
+      if (isMountedRef.current && syncDataRef.current) {
+        syncDataRef.current();
+      }
+    }, SYNC_INTERVAL);
     console.log(`🔄 Chat sync started (interval: ${SYNC_INTERVAL}ms)`);
-  }, [syncData]);
+  }, [clearAllTimers]);
 
   const stopSyncInterval = useCallback(() => {
-    if (syncInterval.current) {
-      clearInterval(syncInterval.current);
-      syncInterval.current = null;
-      console.log('⏹️ Chat sync stopped');
-    }
-  }, []);
+    clearAllTimers();
+    console.log('⏹️ Chat sync stopped');
+  }, [clearAllTimers]);
 
   useEffect(() => {
+    isMountedRef.current = true;
+    
     // Initial sync
     syncData();
     
@@ -193,6 +247,7 @@ const useChatSync = () => {
     
     // Cleanup function
     return () => {
+      isMountedRef.current = false;
       stopSyncInterval();
       syncInProgress.current = false;
       retryCount.current = 0;
@@ -202,7 +257,8 @@ const useChatSync = () => {
   // Return sync status for debugging or UI purposes
   return {
     isSyncing: syncInProgress.current,
-    retryCount: retryCount.current
+    retryCount: retryCount.current,
+    isConnected: isMountedRef.current && syncInProgress.current === false
   };
 };
 

@@ -21,6 +21,8 @@ const MessageInput = () => {
   
   const textInputRef = useRef(null);
   const slideAnim = useRef(new Animated.Value(0)).current;
+  const isMountedRef = useRef(true);
+  const currentAnimationRef = useRef(null);
   
   // Store actions
   const addMessage = useMessageStore((s) => s.addMessage);
@@ -29,20 +31,58 @@ const MessageInput = () => {
   // Reply functionality
   const { replyTo, isReplying, cancelReply } = useReply();
 
-  // Animate reply preview
+  // Animate reply preview with proper cleanup
   useEffect(() => {
-    Animated.timing(slideAnim, {
+    // Stop any existing animation
+    if (currentAnimationRef.current) {
+      currentAnimationRef.current.stop();
+    }
+
+    currentAnimationRef.current = Animated.timing(slideAnim, {
       toValue: isReplying ? 1 : 0,
       duration: 200,
       useNativeDriver: false,
-    }).start();
+    });
+
+    currentAnimationRef.current.start((finished) => {
+      if (finished) {
+        currentAnimationRef.current = null;
+      }
+    });
+
+    // Cleanup function
+    return () => {
+      if (currentAnimationRef.current) {
+        currentAnimationRef.current.stop();
+        currentAnimationRef.current = null;
+      }
+    };
   }, [isReplying, slideAnim]);
+
+  // Set up mounted ref and cleanup
+  useEffect(() => {
+    isMountedRef.current = true;
+    
+    return () => {
+      isMountedRef.current = false;
+      // Stop any running animations
+      if (currentAnimationRef.current) {
+        currentAnimationRef.current.stop();
+      }
+    };
+  }, []);
+
+  const safeSetState = (setter, value) => {
+    if (isMountedRef.current) {
+      setter(value);
+    }
+  };
 
   const handleSend = async () => {
     const trimmedText = text.trim();
     if (!trimmedText || sending) return;
 
-    setSending(true);
+    safeSetState(setSending, true);
     
     // Create optimistic message
     const tempMessage = {
@@ -66,8 +106,8 @@ const MessageInput = () => {
     
     // Optimistically add message and clear input
     addMessage(tempMessage);
-    setText('');
-    setInputHeight(48); // Reset height
+    safeSetState(setText, '');
+    safeSetState(setInputHeight, 48); // Reset height
     
     // Clear reply state
     if (isReplying) {
@@ -79,18 +119,24 @@ const MessageInput = () => {
       // TODO: When API supports replies, send replyToMessage: replyTo.uuid
       const newMessage = await sendMessage(trimmedText);
       
-      // Replace temp message with real message from server
-      updateMessage({ 
-        ...newMessage, 
-        status: 'sent',
-        // Preserve reply reference for UI (server may not return it yet)
-        ...(tempMessage.replyToMessage ? { 
-          replyToMessage: tempMessage.replyToMessage 
-        } : {})
-      });
+      // Only update if component is still mounted
+      if (isMountedRef.current) {
+        // Replace temp message with real message from server
+        updateMessage({ 
+          ...newMessage, 
+          status: 'sent',
+          // Preserve reply reference for UI (server may not return it yet)
+          ...(tempMessage.replyToMessage ? { 
+            replyToMessage: tempMessage.replyToMessage 
+          } : {})
+        });
+      }
       
     } catch (err) {
       console.error('Failed to send message:', err);
+      
+      // Only proceed if component is still mounted
+      if (!isMountedRef.current) return;
       
       // Mark message as failed
       updateMessage({ 
@@ -107,39 +153,53 @@ const MessageInput = () => {
           {
             text: 'Retry',
             onPress: () => {
-              // Restore text and retry
-              setText(trimmedText);
-              // Remove failed message
-              updateMessage({ ...tempMessage, status: 'deleted' });
-              // Note: Reply state restoration could be added here if needed
+              if (isMountedRef.current) {
+                // Restore text and retry
+                setText(trimmedText);
+                // Remove failed message
+                updateMessage({ ...tempMessage, status: 'deleted' });
+                // Note: Reply state restoration could be added here if needed
+              }
             }
           },
           { 
             text: 'Cancel', 
             style: 'cancel',
             onPress: () => {
-              // Just remove the failed message
-              updateMessage({ ...tempMessage, status: 'deleted' });
+              if (isMountedRef.current) {
+                // Just remove the failed message
+                updateMessage({ ...tempMessage, status: 'deleted' });
+              }
             }
           }
         ]
       );
     } finally {
-      setSending(false);
+      safeSetState(setSending, false);
     }
   };
 
   const handleTextChange = (newText) => {
     // Prevent excessive length
     if (newText.length <= 1000) {
-      setText(newText);
+      safeSetState(setText, newText);
     }
   };
 
   const handleContentSizeChange = (event) => {
+    if (!isMountedRef.current) return;
+    
     const { height } = event.nativeEvent.contentSize;
     const newHeight = Math.max(48, Math.min(height + 16, 100));
-    setInputHeight(newHeight);
+    safeSetState(setInputHeight, newHeight);
+  };
+
+  const handleRetryKeyPress = (event) => {
+    // Handle iOS send on return key press
+    if (Platform.OS === 'ios' && event.nativeEvent.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      handleSend();
+    }
   };
 
   const isDisabled = !text.trim() || sending;
@@ -175,6 +235,8 @@ const MessageInput = () => {
               style={styles.cancelButton}
               onPress={cancelReply}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel="Cancel reply"
+              accessibilityRole="button"
             >
               <Text style={styles.cancelButtonText}>×</Text>
             </TouchableOpacity>
@@ -190,6 +252,7 @@ const MessageInput = () => {
           value={text}
           onChangeText={handleTextChange}
           onContentSizeChange={handleContentSizeChange}
+          onKeyPress={handleRetryKeyPress}
           placeholder={isReplying ? "Write a reply..." : "Type a message..."}
           placeholderTextColor="#999"
           multiline
@@ -200,6 +263,8 @@ const MessageInput = () => {
           onSubmitEditing={Platform.OS === 'ios' ? handleSend : undefined}
           textAlignVertical="top"
           scrollEnabled={inputHeight >= 100}
+          accessibilityLabel={isReplying ? "Reply message input" : "Message input"}
+          accessibilityHint="Type your message here"
         />
         
         {/* Send Button */}
@@ -211,6 +276,9 @@ const MessageInput = () => {
           onPress={handleSend}
           disabled={isDisabled}
           activeOpacity={0.7}
+          accessibilityLabel="Send message"
+          accessibilityRole="button"
+          accessibilityState={{ disabled: isDisabled }}
         >
           {/* Fallback for missing icon mapping */}
           <View style={[
@@ -224,7 +292,7 @@ const MessageInput = () => {
       
       {/* Character Count (when approaching limit) */}
       {text.length > 800 && (
-        <Text style={styles.charCount}>
+        <Text style={styles.charCount} accessibilityLabel={`${text.length} of 1000 characters`}>
           {text.length}/1000
         </Text>
       )}

@@ -1,25 +1,27 @@
 // src/components/MessageGroup.jsx
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import MessageBubble from './MessageBubble';
-import { formatDate } from '../utils/formatDate';
+import DateSeparator from './DateSeparator';
 
 /**
  * A message group handles rendering one or more consecutive messages
  * from the same participant, optionally separated by date.
  */
 const MessageGroup = ({ group, onReact, onReactionPress }) => {
+  if (!group) return null;
+
   return (
     <View style={styles.wrapper}>
+      {/* Date separator for messages sent on different days */}
       {group.dateSeparator && (
-        <View style={styles.dateWrapper}>
-          <Text style={styles.dateText}>{formatDate(group.createdAt)}</Text>
-        </View>
+        <DateSeparator timestamp={group.createdAt} />
       )}
 
+      {/* Main message bubble */}
       <MessageBubble 
         message={group} 
-        isGrouped={group.isGrouped}
+        isGrouped={group.isGrouped || false}
         onReact={onReact}
         onReactionPress={onReactionPress}
       />
@@ -30,14 +32,6 @@ const MessageGroup = ({ group, onReact, onReactionPress }) => {
 const styles = StyleSheet.create({
   wrapper: {
     marginBottom: 8,
-  },
-  dateWrapper: {
-    alignItems: 'center',
-    marginVertical: 6,
-  },
-  dateText: {
-    fontSize: 12,
-    color: '#999',
   },
 });
 

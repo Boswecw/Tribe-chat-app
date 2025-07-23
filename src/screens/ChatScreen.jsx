@@ -160,16 +160,22 @@ const ChatScreen = () => {
                   </Text>
                   <Text style={styles.reactionCountText}>
                     {reactionBottomSheet.reaction.count} 
-                    {reactionBottomSheet.reaction.count === 1 ? ' person' : ' people'}
+                    {reactionBottomSheet.reaction.count === 1 ? ' person' : ' people'} reacted
                   </Text>
                 </View>
+                
+                {/* List of participants who reacted */}
                 <View style={styles.participantsList}>
-                  {reactionBottomSheet.reaction.participants?.map((participant, index) => (
-                    <Text key={index} style={styles.participantName}>
-                      {participant === 'you' ? 'You' : participant}
-                    </Text>
+                  {reactionBottomSheet.reaction.participants?.map((participantId, index) => (
+                    <View key={index} style={styles.participantItem}>
+                      <Text style={styles.participantName}>
+                        {participantId === 'you' ? 'You' : `User ${participantId}`}
+                      </Text>
+                    </View>
                   )) || (
-                    <Text style={styles.participantName}>Anonymous users</Text>
+                    <Text style={styles.noParticipantsText}>
+                      No participant details available
+                    </Text>
                   )}
                 </View>
               </>
@@ -210,10 +216,23 @@ const styles = StyleSheet.create({
   participantsList: {
     gap: 8,
   },
+  participantItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: colors.surface,
+    borderRadius: 8,
+  },
   participantName: {
     fontSize: 14,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  noParticipantsText: {
+    fontSize: 14,
     color: colors.textMuted,
-    paddingVertical: 4,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    padding: 16,
   },
 });
 

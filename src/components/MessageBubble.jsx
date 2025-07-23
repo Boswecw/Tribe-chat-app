@@ -32,6 +32,11 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress }) => {
     setShowReactionRow(!showReactionRow);
   };
 
+  const handleImagePress = () => {
+    // TODO: Implement image preview modal
+    console.log('Image pressed:', message.image);
+  };
+
   return (
     <View style={{ marginTop: isGrouped ? 2 : 12, paddingHorizontal: 12 }}>
       {!isGrouped && (
@@ -46,7 +51,13 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress }) => {
         <Text style={styles.text}>{message.text}</Text>
         
         {message.image && (
-          <Image source={{ uri: message.image }} style={styles.image} />
+          <TouchableOpacity onPress={handleImagePress} activeOpacity={0.8}>
+            <Image 
+              source={{ uri: message.image }} 
+              style={styles.image}
+              resizeMode="cover"
+            />
+          </TouchableOpacity>
         )}
         
         {message.editedAt && (
@@ -61,6 +72,7 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress }) => {
                 key={`${reaction.emoji}-${index}`}
                 style={styles.reactionBubble}
                 onPress={() => handleReactionPress(reaction)}
+                activeOpacity={0.7}
               >
                 <Text style={styles.reactionEmoji}>{reaction.emoji}</Text>
                 <Text style={styles.reactionCount}>{reaction.count}</Text>
@@ -73,6 +85,9 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress }) => {
         <TouchableOpacity 
           style={styles.addReactionButton}
           onPress={toggleReactionRow}
+          activeOpacity={0.7}
+          accessibilityLabel={showReactionRow ? "Hide reaction options" : "Show reaction options"}
+          accessibilityRole="button"
         >
           <Text style={styles.addReactionText}>
             {showReactionRow ? '✕' : '😊+'}
@@ -84,6 +99,36 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress }) => {
       {showReactionRow && (
         <View style={styles.reactionRowContainer}>
           <ReactionRow onReact={handleReact} />
+        </View>
+      )}
+
+      {/* Reply to message functionality */}
+      {message.replyToMessage && (
+        <View style={styles.replyToContainer}>
+          <View style={styles.replyToLine} />
+          <View style={styles.replyToContent}>
+            <Text style={styles.replyToLabel}>
+              Replying to {message.replyToMessage.participant?.name || 'Unknown'}
+            </Text>
+            <Text style={styles.replyToText} numberOfLines={2}>
+              {message.replyToMessage.text}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* Message status indicator */}
+      {message.status && message.status !== 'sent' && (
+        <View style={styles.statusContainer}>
+          <Text style={[
+            styles.statusText, 
+            message.status === 'failed' && styles.statusFailed,
+            message.status === 'sending' && styles.statusSending
+          ]}>
+            {message.status === 'sending' && '⏳ Sending...'}
+            {message.status === 'failed' && '❌ Failed to send'}
+            {message.status === 'deleted' && '🗑️ Deleted'}
+          </Text>
         </View>
       )}
     </View>
@@ -115,16 +160,19 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 14,
+    lineHeight: 20,
   },
   edited: {
     fontSize: 10,
     color: '#888',
     marginTop: 4,
+    fontStyle: 'italic',
   },
   image: {
-    marginTop: 6,
+    marginTop: 8,
     height: 150,
     borderRadius: 6,
+    backgroundColor: '#f5f5f5',
   },
   existingReactions: {
     flexDirection: 'row',
@@ -180,6 +228,48 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
+  },
+  replyToContainer: {
+    flexDirection: 'row',
+    marginTop: 4,
+    marginLeft: 8,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 6,
+    padding: 8,
+  },
+  replyToLine: {
+    width: 3,
+    backgroundColor: '#007AFF',
+    borderRadius: 2,
+    marginRight: 8,
+  },
+  replyToContent: {
+    flex: 1,
+  },
+  replyToLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#007AFF',
+    marginBottom: 2,
+  },
+  replyToText: {
+    fontSize: 12,
+    color: '#666',
+    lineHeight: 16,
+  },
+  statusContainer: {
+    marginTop: 4,
+    alignItems: 'flex-end',
+  },
+  statusText: {
+    fontSize: 10,
+    color: '#888',
+  },
+  statusFailed: {
+    color: '#dc3545',
+  },
+  statusSending: {
+    color: '#6c757d',
   },
 });
 

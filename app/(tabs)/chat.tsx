@@ -1,19 +1,13 @@
+// app/(tabs)/chat.tsx
 import React from 'react';
-import { StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import ChatScreen from '@/src/screens/ChatScreen';
+import { StatusBar } from 'expo-status-bar';
+import ChatScreen from '../../src/screens/ChatScreen';
 
-export default function ChatTabScreen() {
+export default function ChatTab() {
   return (
-    <SafeAreaView style={styles.container}>
+    <>
+      <StatusBar style="auto" />
       <ChatScreen />
-    </SafeAreaView>
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-});
