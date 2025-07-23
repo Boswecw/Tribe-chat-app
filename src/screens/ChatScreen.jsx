@@ -105,12 +105,14 @@ const ChatScreen = () => {
 
   // Custom hooks
   const { 
-    loading: syncLoading, 
-    error: syncError, 
-    executeSyncOperation 
+    isSyncing: syncLoading
   } = useChatSync();
   
-  const { executeOperation: executeReactionOperation } = useAsyncOperation();
+  const { execute: executeReactionOperation } = useAsyncOperation();
+  const { execute: executeSyncOperation } = useAsyncOperation();
+
+  // Create sync error state locally since useChatSync doesn't provide it
+  const [syncError, setSyncError] = useState(null);
 
   // Process and group messages
   const groupedMessages = useMemo(() => {
@@ -164,31 +166,40 @@ const ChatScreen = () => {
     if (refreshing) return;
 
     setRefreshing(true);
+    setSyncError(null);
+    
     try {
       await executeSyncOperation(
         async () => {
           const latestMessages = await fetchLatestMessages();
+          return latestMessages;
+        },
+        (latestMessages) => {
           setMessages(latestMessages);
           setConnectionStatus('connected');
           
           AccessibilityInfo.announceForAccessibility(
             `Loaded ${latestMessages.length} messages`
           );
-          
-          return latestMessages;
         },
-        'Failed to refresh messages. Please try again.'
+        (error) => {
+          console.error('Failed to refresh messages:', error);
+          setSyncError(error);
+          setConnectionStatus('disconnected');
+          
+          Alert.alert(
+            'Connection Error',
+            'Unable to refresh messages. Please check your internet connection.',
+            [
+              { text: 'OK' },
+              { text: 'Retry', onPress: () => onRefresh() }
+            ]
+          );
+        }
       );
-    } catch (_error) {
-      setConnectionStatus('disconnected');
-      Alert.alert(
-        'Connection Error',
-        'Unable to refresh messages. Please check your internet connection.',
-        [
-          { text: 'OK' },
-          { text: 'Retry', onPress: () => onRefresh() }
-        ]
-      );
+    } catch (error) {
+      // Error already handled in onError callback
+      console.error('Refresh operation failed:', error);
     } finally {
       setRefreshing(false);
     }
