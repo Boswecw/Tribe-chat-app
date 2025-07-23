@@ -1,4 +1,4 @@
-// src/components/MessageInput.jsx
+// src/components/MessageInput.jsx - FIXED VERSION
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   View, 
@@ -92,7 +92,7 @@ const MessageInput = () => {
       createdAt: new Date().toISOString(),
       participant: { 
         name: 'You', 
-        uuid: 'you' // Use 'you' as specified in API docs
+        uuid: 'you' // ✅ Correct participant for own messages
       },
       // Include reply reference if replying
       ...(isReplying && replyTo ? { 
@@ -121,10 +121,18 @@ const MessageInput = () => {
       
       // Only update if component is still mounted
       if (isMountedRef.current) {
-        // Replace temp message with real message from server
+        // 🔧 FIX: Preserve correct participant info and only update necessary fields
         updateMessage({ 
-          ...newMessage, 
+          // Keep the temp message as base (preserves correct participant)
+          ...tempMessage,
+          // Only override specific fields from server response
+          uuid: newMessage.uuid, // Use real UUID from server
+          createdAt: newMessage.createdAt, // Use server timestamp
           status: 'sent',
+          // Preserve any additional data from server (but not participant)
+          ...(newMessage.reactions && { reactions: newMessage.reactions }),
+          ...(newMessage.editedAt && { editedAt: newMessage.editedAt }),
+          ...(newMessage.image && { image: newMessage.image }),
           // Preserve reply reference for UI (server may not return it yet)
           ...(tempMessage.replyToMessage ? { 
             replyToMessage: tempMessage.replyToMessage 

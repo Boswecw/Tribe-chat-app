@@ -1,4 +1,4 @@
-// src/components/MessageBubble.jsx - Debug version with fix
+// src/components/MessageBubble.jsx - Final clean version
 import React, { useState, useCallback, useMemo } from 'react';
 import { 
   View, 
@@ -21,24 +21,8 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress, onPartici
   const displayName = participant?.name || 'Unknown';
   const hasReactions = message.reactions && message.reactions.length > 0;
   
-  // 🐛 DEBUG: Let's see what we're getting and add multiple ways to detect own messages
-  const participantUuid = participant?.uuid;
-  const isOwnMessageByUuid = participantUuid === 'you';
-  const isOwnMessageByName = displayName === 'You' || displayName === 'you';
-  
-  // Debug logging (remove after fixing)
-  if (__DEV__) {
-    console.log('🐛 MessageBubble Debug:', {
-      participantUuid,
-      displayName,
-      isOwnMessageByUuid,
-      isOwnMessageByName,
-      messageText: message.text?.substring(0, 20) + '...'
-    });
-  }
-  
-  // Use the uuid method first, fallback to name method if needed
-  const isOwnMessage = isOwnMessageByUuid || isOwnMessageByName;
+  // Check if this is the current user's message
+  const isOwnMessage = participant?.uuid === 'you';
 
   // Memoize formatted time to prevent recalculation
   const formattedTime = useMemo(() => formatTime(message.createdAt), [message.createdAt]);
@@ -289,7 +273,7 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress, onPartici
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 12,
-    width: '100%', // Ensure full width for proper alignment
+    width: '100%',
   },
   
   containerGrouped: {
@@ -301,7 +285,7 @@ const styles = StyleSheet.create({
   },
   
   containerOwn: {
-    alignItems: 'flex-end', // Changed from alignSelf to alignItems for better control
+    alignItems: 'flex-end',
   },
   
   header: {
@@ -331,12 +315,12 @@ const styles = StyleSheet.create({
     padding: 12,
     position: 'relative',
     maxWidth: '80%',
-    alignSelf: 'flex-start', // Default alignment for other messages
+    alignSelf: 'flex-start',
   },
   
   bubbleOwn: {
     backgroundColor: '#007AFF',
-    alignSelf: 'flex-end', // Own messages align to the right
+    alignSelf: 'flex-end',
   },
   
   text: {
