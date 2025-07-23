@@ -8,7 +8,7 @@ import { formatDate } from '../utils/formatDate';
  * A message group handles rendering one or more consecutive messages
  * from the same participant, optionally separated by date.
  */
-const MessageGroup = ({ group }) => {
+const MessageGroup = ({ group, onReact, onReactionPress }) => {
   return (
     <View style={styles.wrapper}>
       {group.dateSeparator && (
@@ -17,7 +17,12 @@ const MessageGroup = ({ group }) => {
         </View>
       )}
 
-      <MessageBubble message={group} isGrouped={group.isGrouped} />
+      <MessageBubble 
+        message={group} 
+        isGrouped={group.isGrouped}
+        onReact={onReact}
+        onReactionPress={onReactionPress}
+      />
     </View>
   );
 };
