@@ -1,5 +1,5 @@
-// src/screens/ChatScreen.jsx
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+// src/screens/ChatScreen.jsx - Fixed ESLint issues version
+import React, { useEffect, useState, useCallback, useMemo, useRef, memo } from 'react';
 import { 
   FlatList, 
   View, 
@@ -9,7 +9,8 @@ import {
   Alert,
   AccessibilityInfo,
   ActivityIndicator,
-  TouchableOpacity
+  TouchableOpacity,
+  AppState
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -37,29 +38,165 @@ import BottomSheet from '../components/BottomSheet';
 // Constants imports
 import colors from '../constants/colors';
 
-const ITEM_APPROXIMATE_HEIGHT = 100; // Approximate height for performance optimization
+// Utility functions
+const debounce = (func, wait) => {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+};
 
-// Simple ErrorBoundary fallback component (temporary)
-class SimpleErrorBoundary extends React.Component {
+const throttle = (func, limit) => {
+  let inThrottle;
+  return function(...args) {
+    if (!inThrottle) {
+      func.apply(this, args);
+      inThrottle = true;
+      setTimeout(() => inThrottle = false, limit);
+    }
+  };
+};
+
+// Request queue for preventing 409 conflicts
+class RequestQueue {
+  constructor() {
+    this.queue = [];
+    this.processing = false;
+    this.maxConcurrent = 1; // Prevent concurrent requests
+  }
+
+  async add(request) {
+    return new Promise((resolve, reject) => {
+      this.queue.push({ request, resolve, reject, timestamp: Date.now() });
+      this.process();
+    });
+  }
+
+  async process() {
+    if (this.processing || this.queue.length === 0) return;
+    
+    this.processing = true;
+    const { request, resolve, reject } = this.queue.shift();
+    
+    try {
+      const result = await request();
+      resolve(result);
+    } catch (error) {
+      // Handle 409 conflicts gracefully
+      if (error.response?.status === 409) {
+        console.warn('Request conflict detected, retrying...', error.message);
+        // Add back to queue for retry with delay
+        setTimeout(() => {
+          this.queue.unshift({ request, resolve, reject, timestamp: Date.now() });
+          this.processing = false;
+          this.process();
+        }, 1000);
+        return;
+      }
+      reject(error);
+    } finally {
+      this.processing = false;
+      // Small delay to prevent rapid-fire requests
+      setTimeout(() => this.process(), 100);
+    }
+  }
+
+  clear() {
+    this.queue = [];
+    this.processing = false;
+  }
+}
+
+const requestQueue = new RequestQueue();
+
+// Constants
+const ITEM_APPROXIMATE_HEIGHT = 100;
+const SCROLL_DEBOUNCE_MS = 300;
+const REACTION_THROTTLE_MS = 1000;
+const REFRESH_THROTTLE_MS = 2000;
+
+// Enhanced ErrorBoundary with 409 error handling
+class EnhancedErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { 
+      hasError: false, 
+      error: null,
+      retryCount: 0,
+      lastError: null 
+    };
   }
 
   static getDerivedStateFromError(error) {
-    return { hasError: true };
+    return { hasError: true, error };
   }
 
   componentDidCatch(error, errorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
+    
+    // Track development server issues
+    if (__DEV__) {
+      if (error.message?.includes('Network request failed') || 
+          error.message?.includes('409') ||
+          error.message?.includes('createEntryFileAsync')) {
+        console.warn('🚨 Development server issue detected - consider restarting');
+        console.warn('Common causes: Rapid re-renders, concurrent requests, or Metro bundler conflicts');
+      }
+    }
+
+    // Auto-recovery for certain errors
+    if (this.state.retryCount < 3 && this.shouldAutoRecover(error)) {
+      setTimeout(() => {
+        this.setState(prevState => ({ 
+          hasError: false, 
+          error: null,
+          retryCount: prevState.retryCount + 1 
+        }));
+      }, 2000);
+    }
   }
+
+  shouldAutoRecover(error) {
+    const recoverableErrors = [
+      'Network request failed',
+      'Connection timeout',
+      '409',
+      'Request conflict'
+    ];
+    return recoverableErrors.some(msg => error.message?.includes(msg));
+  }
+
+  handleRetry = () => {
+    this.setState({ hasError: false, error: null });
+  };
 
   render() {
     if (this.state.hasError) {
       return (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 10 }}>Something went wrong</Text>
-          <Text style={{ textAlign: 'center', color: '#666' }}>Please try refreshing the app</Text>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorTitle}>Something went wrong</Text>
+          <Text style={styles.errorMessage}>
+            {__DEV__ && this.state.error?.message ? 
+              `Dev Error: ${this.state.error.message}` : 
+              'Please try refreshing the app'
+            }
+          </Text>
+          {this.state.retryCount < 3 && (
+            <Text style={styles.errorHint}>
+              Auto-retry in progress... ({this.state.retryCount}/3)
+            </Text>
+          )}
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={this.handleRetry}
+          >
+            <Text style={styles.retryButtonText}>Try Again</Text>
+          </TouchableOpacity>
         </View>
       );
     }
@@ -68,12 +205,43 @@ class SimpleErrorBoundary extends React.Component {
   }
 }
 
+// Memoized components for performance
+const MemoizedMessageGroup = memo(MessageGroup, (prevProps, nextProps) => {
+  return (
+    prevProps.group.uuid === nextProps.group.uuid &&
+    prevProps.group.messages?.length === nextProps.group.messages?.length &&
+    JSON.stringify(prevProps.group.reactions) === JSON.stringify(nextProps.group.reactions)
+  );
+});
+
+// Add display name for debugging
+MemoizedMessageGroup.displayName = 'MemoizedMessageGroup';
+
+const ConnectionBanner = memo(({ status, onRetry }) => {
+  if (status === 'connected') return null;
+  
+  return (
+    <View style={styles.connectionBanner}>
+      <Text style={styles.connectionText}>
+        {status === 'disconnected' ? '⚠️ Connection lost. Trying to reconnect...' : 'Syncing messages...'}
+      </Text>
+      {status === 'disconnected' && (
+        <TouchableOpacity onPress={onRetry} style={styles.retryTextContainer}>
+          <Text style={styles.retryText}>Pull down to refresh</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+});
+
+// Add display name for debugging
+ConnectionBanner.displayName = 'ConnectionBanner';
+
 const ChatScreen = () => {
   // Zustand store hooks
   const { 
     messages, 
     setMessages, 
-    updateMessage, 
     addReactionOptimistic, 
     confirmReaction, 
     revertReaction,
@@ -83,291 +251,246 @@ const ChatScreen = () => {
   const { participants } = useParticipantStore();
   const { sessionUuid } = useSessionStore();
 
-  // Local state
-  const [refreshing, setRefreshing] = useState(false);
-  const [loadingOlder, setLoadingOlder] = useState(false);
-  const [hasMoreMessages, setHasMoreMessages] = useState(true);
-  const [connectionStatus, setConnectionStatus] = useState('connected');
-  const [reactionBottomSheet, setReactionBottomSheet] = useState({
-    visible: false,
-    messageId: null,
-    reaction: null,
+  // Local state with better organization
+  const [state, setState] = useState({
+    refreshing: false,
+    loadingOlder: false,
+    hasMoreMessages: true,
+    connectionStatus: 'connected',
+    syncError: null
   });
-  const [participantBottomSheet, setParticipantBottomSheet] = useState({
-    visible: false,
-    participant: null,
+  
+  const [bottomSheets, setBottomSheets] = useState({
+    reaction: { visible: false, messageId: null, reaction: null },
+    participant: { visible: false, participant: null }
   });
 
-  // Refs
+  // Refs for performance optimization
   const flatListRef = useRef(null);
   const retryTimeoutRef = useRef(null);
   const prevMessageCountRef = useRef(0);
+  const appStateRef = useRef(AppState.currentState);
+  const lastScrollRef = useRef(0);
+  const isScrollingRef = useRef(false);
 
   // Custom hooks
-  const { 
-    isSyncing: syncLoading
-  } = useChatSync();
-  
+  const { isSyncing: syncLoading } = useChatSync();
   const { execute: executeReactionOperation } = useAsyncOperation();
   const { execute: executeSyncOperation } = useAsyncOperation();
 
-  // Create sync error state locally since useChatSync doesn't provide it
-  const [syncError, setSyncError] = useState(null);
-
-  // Process and group messages
-  const groupedMessages = useMemo(() => {
-    if (!messages || messages.length === 0) return [];
-    
-    try {
-      return groupMessages(messages, participants);
-    } catch (error) {
-      console.error('Error grouping messages:', error);
-      return [];
-    }
-  }, [messages, participants]);
-
-  // FIXED: Reverse messages for proper display order (newest at bottom)
-  const displayMessages = useMemo(() => {
-    return [...groupedMessages].reverse();
-  }, [groupedMessages]);
-
-  // FIXED: Auto-scroll to bottom when new messages arrive
-  const scrollToBottom = useCallback((animated = true) => {
-    if (flatListRef.current && displayMessages.length > 0) {
-      // Small delay to ensure content has rendered
+  // Create scroll function without debounce first
+  const scrollToBottomBase = useCallback((animated = true) => {
+    if (flatListRef.current && !isScrollingRef.current) {
+      const now = Date.now();
+      if (now - lastScrollRef.current < SCROLL_DEBOUNCE_MS) return;
+      
+      lastScrollRef.current = now;
       setTimeout(() => {
         try {
           flatListRef.current?.scrollToEnd({ animated });
         } catch (error) {
           console.warn('Failed to scroll to bottom:', error);
         }
-      }, 100);
+      }, 50);
     }
-  }, [displayMessages.length]);
+  }, []);
 
-  // FIXED: Effect to scroll to bottom on new messages
-  useEffect(() => {
-    const currentMessageCount = displayMessages.length;
-    const prevMessageCount = prevMessageCountRef.current;
+  // Create debounced version using useMemo to avoid recreation
+  const debouncedScrollToBottom = useMemo(
+    () => debounce(scrollToBottomBase, SCROLL_DEBOUNCE_MS),
+    [scrollToBottomBase]
+  );
+
+  // Optimized message processing with useMemo
+  const processedMessages = useMemo(() => {
+    if (!messages || messages.length === 0) return [];
     
-    if (currentMessageCount > prevMessageCount && prevMessageCount > 0) {
-      // New message arrived, scroll to bottom
-      scrollToBottom(true);
-    } else if (currentMessageCount > 0 && prevMessageCount === 0) {
-      // Initial load, scroll to bottom without animation
-      scrollToBottom(false);
+    try {
+      const grouped = groupMessages(messages, participants);
+      return [...grouped].reverse(); // Newest at bottom
+    } catch (error) {
+      console.error('Error processing messages:', error);
+      return [];
     }
-    
-    prevMessageCountRef.current = currentMessageCount;
-  }, [displayMessages.length, scrollToBottom]);
+  }, [messages, participants]);
 
-  // Pull to refresh handler - FIXED: Now loads newer messages since list isn't inverted
-  const onRefresh = useCallback(async () => {
-    if (refreshing) return;
+  // Enhanced refresh handler with request queueing
+  const performRefresh = useCallback(async () => {
+    if (state.refreshing) return;
 
-    setRefreshing(true);
-    setSyncError(null);
+    setState(prev => ({ ...prev, refreshing: true, syncError: null }));
     
     try {
       await executeSyncOperation(
         async () => {
-          const latestMessages = await fetchLatestMessages();
-          return latestMessages;
+          return await requestQueue.add(() => fetchLatestMessages());
         },
-        (latestMessages) => {
-          setMessages(latestMessages);
-          setConnectionStatus('connected');
+        (result) => {
+          setMessages(result);
+          setState(prev => ({ ...prev, connectionStatus: 'connected' }));
           
           AccessibilityInfo.announceForAccessibility(
-            `Loaded ${latestMessages.length} messages`
+            `Loaded ${result.length} messages`
           );
         },
         (error) => {
           console.error('Failed to refresh messages:', error);
-          setSyncError(error);
-          setConnectionStatus('disconnected');
+          setState(prev => ({ 
+            ...prev, 
+            syncError: error, 
+            connectionStatus: 'disconnected' 
+          }));
           
-          Alert.alert(
-            'Connection Error',
-            'Unable to refresh messages. Please check your internet connection.',
-            [
-              { text: 'OK' },
-              { text: 'Retry', onPress: () => onRefresh() }
-            ]
-          );
+          if (error.response?.status !== 409) {
+            Alert.alert(
+              'Connection Error',
+              'Unable to refresh messages. Please check your internet connection.',
+              [
+                { text: 'OK' },
+                { text: 'Retry', onPress: () => performRefresh() }
+              ]
+            );
+          }
         }
       );
     } catch (error) {
-      // Error already handled in onError callback
       console.error('Refresh operation failed:', error);
     } finally {
-      setRefreshing(false);
+      setState(prev => ({ ...prev, refreshing: false }));
     }
-  }, [executeSyncOperation, setMessages, refreshing]);
+  }, [state.refreshing, executeSyncOperation, setMessages]);
 
-  // Initialize data on screen focus
-  useFocusEffect(
-    useCallback(() => {
-      if (sessionUuid && messages.length === 0) {
-        onRefresh();
-      }
-      
-      // Cleanup stale optimistic updates on focus
-      clearStaleOptimisticUpdates();
-      
-      return () => {
-        // Clear any retry timeouts
-        if (retryTimeoutRef.current) {
-          clearTimeout(retryTimeoutRef.current);
-          retryTimeoutRef.current = null;
-        }
-      };
-    }, [sessionUuid, messages.length, onRefresh, clearStaleOptimisticUpdates])
+  // Create throttled refresh function
+  const throttledRefresh = useMemo(
+    () => throttle(performRefresh, REFRESH_THROTTLE_MS),
+    [performRefresh]
   );
 
-  // FIXED: Load older messages (now loads from beginning since list isn't inverted)
-  const loadOlderMessages = useCallback(async () => {
-    if (loadingOlder || !hasMoreMessages || displayMessages.length === 0) {
-      return;
+  // Performance-optimized effect for auto-scroll
+  useEffect(() => {
+    const currentCount = processedMessages.length;
+    const prevCount = prevMessageCountRef.current;
+    
+    if (currentCount > prevCount && prevCount > 0) {
+      // New message - scroll with animation
+      debouncedScrollToBottom(true);
+    } else if (currentCount > 0 && prevCount === 0) {
+      // Initial load - scroll without animation
+      debouncedScrollToBottom(false);
     }
+    
+    prevMessageCountRef.current = currentCount;
+  }, [processedMessages.length, debouncedScrollToBottom]);
 
-    setLoadingOlder(true);
-    try {
-      // TODO: Implement fetchOlderMessages API call
-      // const oldestMessage = groupedMessages[groupedMessages.length - 1];
-      // const olderMessages = await fetchOlderMessages(oldestMessage.uuid);
-      
-      // Simulate loading for now
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const olderMessages = []; // Placeholder
-      
-      if (olderMessages.length === 0) {
-        setHasMoreMessages(false);
-        AccessibilityInfo.announceForAccessibility('No more messages to load');
-      } else {
-        setMessages([...messages, ...olderMessages]);
-        AccessibilityInfo.announceForAccessibility(
-          `Loaded ${olderMessages.length} older messages`
-        );
+  // App state handling
+  const handleAppStateChange = useCallback((nextAppState) => {
+    if (appStateRef.current.match(/inactive|background/) && nextAppState === 'active') {
+      // App came to foreground - gentle refresh
+      if (sessionUuid && processedMessages.length > 0) {
+        performRefresh();
       }
-    } catch (error) {
-      console.error('Failed to load older messages:', error);
-    } finally {
-      setLoadingOlder(false);
     }
-  }, [loadingOlder, hasMoreMessages, displayMessages.length, messages, setMessages]);
+    appStateRef.current = nextAppState;
+  }, [sessionUuid, processedMessages.length, performRefresh]);
 
-  // Enhanced reaction handler with optimistic updates
-  const handleReact = useCallback(async (messageId, emoji) => {
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
+  }, [handleAppStateChange]);
+
+  // Enhanced reaction handler with throttling
+  const handleReactBase = useCallback(async (messageId, emoji) => {
     try {
-      // ✅ FIXED: Prevent reactions on temporary messages
+      // Prevent reactions on temporary messages
       if (messageId.startsWith('temp-')) {
         Alert.alert(
           'Message Still Sending', 
-          'Please wait for the message to be sent before adding reactions.',
-          [{ text: 'OK' }]
+          'Please wait for the message to be sent before adding reactions.'
         );
-        AccessibilityInfo.announceForAccessibility('Cannot react to message while it is being sent');
         return;
       }
 
-      // Add optimistic reaction immediately for better UX
-      const optimisticKey = addReactionOptimistic(messageId, emoji, 'you');
+      // Optimistic update
+      const optimisticId = addReactionOptimistic(messageId, emoji, 'you');
       
-      if (!optimisticKey) {
-        return;
-      }
-
-      AccessibilityInfo.announceForAccessibility(`Added ${emoji} reaction`);
-
-      // Send reaction to server
       await executeReactionOperation(
-        () => sendReaction(messageId, emoji),
-        (serverResponse) => {
-          confirmReaction(optimisticKey);
-          
-          if (serverResponse && serverResponse.uuid === messageId) {
-            updateMessage(serverResponse);
-          }
+        async () => {
+          return await requestQueue.add(() => sendReaction(messageId, emoji, true));
+        },
+        (response) => {
+          confirmReaction(optimisticId, response);
+          AccessibilityInfo.announceForAccessibility(`Added ${emoji} reaction`);
         },
         (error) => {
-          console.error('Failed to send reaction:', error);
-          revertReaction(optimisticKey);
+          revertReaction(optimisticId);
           
+          if (error.response?.status === 409) {
+            console.warn('Reaction request conflict - will retry automatically');
+            return; // Don't show error for 409s
+          }
+          
+          console.error('Failed to send reaction:', error);
           Alert.alert(
-            'Reaction Failed', 
-            'Unable to add reaction. Please try again.',
+            'Failed to Add Reaction',
+            'Please try again.',
             [
               { 
                 text: 'Retry', 
-                onPress: () => handleReact(messageId, emoji) 
+                onPress: () => handleReactBase(messageId, emoji) 
               },
               { text: 'Cancel', style: 'cancel' }
             ]
           );
-          
-          AccessibilityInfo.announceForAccessibility('Failed to add reaction');
         }
       );
     } catch (error) {
       console.error('Reaction error:', error);
     }
-  }, [
-    addReactionOptimistic, 
-    executeReactionOperation, 
-    confirmReaction, 
-    revertReaction, 
-    updateMessage
-  ]);
+  }, [addReactionOptimistic, executeReactionOperation, confirmReaction, revertReaction]);
 
-  // Reaction press handler (show bottom sheet)
+  // Create throttled version using useMemo
+  const handleReact = useMemo(
+    () => throttle(handleReactBase, REACTION_THROTTLE_MS),
+    [handleReactBase]
+  );
+
+  // Optimized handlers
   const handleReactionPress = useCallback((messageId, reaction) => {
-    setReactionBottomSheet({
-      visible: true,
-      messageId,
-      reaction,
-    });
+    setBottomSheets(prev => ({
+      ...prev,
+      reaction: { visible: true, messageId, reaction }
+    }));
     
     AccessibilityInfo.announceForAccessibility(
       `Showing ${reaction.emoji} reaction details`
     );
   }, []);
 
-  // Participant press handler
   const handleParticipantPress = useCallback((participant) => {
-    setParticipantBottomSheet({
-      visible: true,
-      participant,
-    });
+    setBottomSheets(prev => ({
+      ...prev,
+      participant: { visible: true, participant }
+    }));
     
     AccessibilityInfo.announceForAccessibility(
       `Showing details for ${participant.name}`
     );
   }, []);
 
-  // Close bottom sheets
-  const closeReactionBottomSheet = useCallback(() => {
-    setReactionBottomSheet({
-      visible: false,
-      messageId: null,
-      reaction: null,
-    });
-  }, []);
-
-  const closeParticipantBottomSheet = useCallback(() => {
-    setParticipantBottomSheet({
-      visible: false,
-      participant: null,
+  const closeBottomSheets = useCallback(() => {
+    setBottomSheets({
+      reaction: { visible: false, messageId: null, reaction: null },
+      participant: { visible: false, participant: null }
     });
   }, []);
 
   // FlatList optimization callbacks
   const keyExtractor = useCallback((item, index) => {
-    return item.uuid || `message-${index}`;
+    return item.uuid || `message-group-${index}`;
   }, []);
 
   const renderItem = useCallback(({ item, index }) => (
-    <MessageGroup 
+    <MemoizedMessageGroup 
       group={item} 
       onReact={handleReact}
       onReactionPress={handleReactionPress}
@@ -382,46 +505,46 @@ const ChatScreen = () => {
     index,
   }), []);
 
-  // Header component with connection status
-  const renderHeader = useCallback(() => {
-    if (connectionStatus === 'disconnected') {
-      return (
-        <View style={styles.connectionBanner}>
-          <Text style={styles.connectionText}>
-            ⚠️ Connection lost. Trying to reconnect...
-          </Text>
-          <Text style={styles.retryText}>
-            Pull down to refresh
-          </Text>
-        </View>
-      );
-    }
-    
-    if (syncLoading) {
-      return (
-        <View style={styles.syncBanner}>
-          <ActivityIndicator size="small" color={colors.background} />
-          <Text style={styles.syncText}>Syncing messages...</Text>
-        </View>
-      );
-    }
-    
-    return null;
-  }, [connectionStatus, syncLoading]);
+  const handleScrollBeginDrag = useCallback(() => {
+    isScrollingRef.current = true;
+  }, []);
 
-  // Loading footer component
-  const renderFooter = useCallback(() => {
-    if (!loadingOlder) return null;
-    
-    return (
-      <View style={styles.loadingFooter}>
-        <ActivityIndicator size="small" color={colors.primary} />
-        <Text style={styles.loadingText}>Loading older messages...</Text>
-      </View>
-    );
-  }, [loadingOlder]);
+  const handleScrollEndDrag = useCallback(() => {
+    isScrollingRef.current = false;
+  }, []);
 
-  // Empty state component
+  // Focus effect with cleanup
+  useFocusEffect(
+    useCallback(() => {
+      if (sessionUuid && processedMessages.length === 0) {
+        throttledRefresh();
+      }
+      
+      // Cleanup stale optimistic updates
+      clearStaleOptimisticUpdates();
+      
+      return () => {
+        // Clear timeouts and queues
+        if (retryTimeoutRef.current) {
+          clearTimeout(retryTimeoutRef.current);
+          retryTimeoutRef.current = null;
+        }
+        requestQueue.clear();
+      };
+    }, [sessionUuid, processedMessages.length, throttledRefresh, clearStaleOptimisticUpdates])
+  );
+
+  // Cleanup debounced/throttled functions on unmount
+  useEffect(() => {
+    return () => {
+      // Cancel any pending debounced calls
+      if (debouncedScrollToBottom.cancel) {
+        debouncedScrollToBottom.cancel();
+      }
+    };
+  }, [debouncedScrollToBottom]);
+
+  // Empty state
   const renderEmptyState = useCallback(() => (
     <View style={styles.emptyState}>
       <Text style={styles.emptyStateTitle}>Welcome to the chat!</Text>
@@ -431,174 +554,121 @@ const ChatScreen = () => {
     </View>
   ), []);
 
-  // Error state component
+  // Connection Banner component with proper dependencies
+  const connectionBannerOnRetry = useCallback(() => {
+    performRefresh();
+  }, [performRefresh]);
+
+  // Error state with proper dependencies  
   const renderErrorState = useCallback(() => {
+    if (!state.syncError) return null;
+    
     return (
       <View style={styles.errorState}>
-        <Text style={styles.errorTitle}>
-          Unable to load messages
-        </Text>
+        <Text style={styles.errorTitle}>Unable to load messages</Text>
         <Text style={styles.errorMessage}>
-          {syncError?.message || 'Something went wrong while loading messages.'}
+          {state.syncError?.message || 'Something went wrong while loading messages.'}
         </Text>
         <TouchableOpacity 
           style={styles.retryButton}
-          onPress={() => onRefresh()}
-          accessible={true}
-          accessibilityRole="button"
-          accessibilityLabel="Retry loading messages"
+          onPress={performRefresh}
         >
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
       </View>
     );
-  }, [syncError, onRefresh]);
+  }, [state.syncError, performRefresh]);
 
   return (
-    <SimpleErrorBoundary>
+    <EnhancedErrorBoundary>
       <SafeAreaView style={styles.container}>
         <View style={styles.chatContainer}>
-          {/* Connection status header */}
-          {renderHeader()}
+          {/* Connection status */}
+          <ConnectionBanner 
+            status={state.connectionStatus} 
+            onRetry={connectionBannerOnRetry}
+          />
+          
+          {/* Sync loading indicator */}
+          {syncLoading && (
+            <View style={styles.syncBanner}>
+              <ActivityIndicator size="small" color={colors.background} />
+              <Text style={styles.syncText}>Syncing messages...</Text>
+            </View>
+          )}
           
           {/* Error state */}
-          {syncError && renderErrorState()}
+          {renderErrorState()}
           
-          {/* Messages list - FIXED: No longer inverted */}
+          {/* Messages list */}
           <FlatList
             ref={flatListRef}
-            data={displayMessages} // Using reversed data
+            data={processedMessages}
             renderItem={renderItem}
             keyExtractor={keyExtractor}
             getItemLayout={getItemLayout}
             
             // Performance optimizations
             removeClippedSubviews={true}
-            maxToRenderPerBatch={10}
-            updateCellsBatchingPeriod={50}
-            windowSize={10}
-            initialNumToRender={15}
+            maxToRenderPerBatch={8}
+            updateCellsBatchingPeriod={100}
+            windowSize={8}
+            initialNumToRender={12}
             
-            // FIXED: Auto-scroll behavior for new messages
-            onContentSizeChange={scrollToBottom}
-            onLayout={() => scrollToBottom(false)}
+            // Scroll handling
+            onScrollBeginDrag={handleScrollBeginDrag}
+            onScrollEndDrag={handleScrollEndDrag}
+            onContentSizeChange={() => debouncedScrollToBottom(false)}
+            onLayout={() => debouncedScrollToBottom(false)}
             
-            // REMOVED: inverted={true} - This was causing the mirroring!
+            // Pull to refresh
+            refreshControl={
+              <RefreshControl
+                refreshing={state.refreshing}
+                onRefresh={throttledRefresh}
+                tintColor={colors.primary}
+                colors={[colors.primary]}
+              />
+            }
+            
+            // Empty state
+            ListEmptyComponent={renderEmptyState}
             
             // Styling
             style={styles.messagesList}
             contentContainerStyle={[
-              styles.messagesListContent,
-              displayMessages.length === 0 && styles.messagesListEmpty
+              styles.messagesContent,
+              processedMessages.length === 0 && styles.messagesContentEmpty
             ]}
-            showsVerticalScrollIndicator={false}
-            
-            // FIXED: Pull to refresh now loads newer messages (normal behavior)
-            refreshControl={
-              <RefreshControl 
-                refreshing={refreshing} 
-                onRefresh={onRefresh}
-                colors={[colors.primary]}
-                tintColor={colors.primary}
-              />
-            }
-            
-            // FIXED: Load older messages when scrolling to top (normal behavior)
-            onEndReached={loadOlderMessages}
-            onEndReachedThreshold={0.1}
-            
-            // Footer for loading indicator
-            ListFooterComponent={renderFooter}
-            
-            // Empty state
-            ListEmptyComponent={!syncLoading ? renderEmptyState : null}
             
             // Accessibility
             accessible={true}
-            accessibilityLabel="Messages list"
-            accessibilityHint="Swipe up and down to navigate messages"
+            accessibilityRole="list"
+            accessibilityLabel="Chat messages"
           />
           
-          {/* Input component */}
+          {/* Message Input */}
           <MessageInput />
+          
+          {/* Bottom Sheets */}
+          <BottomSheet
+            visible={bottomSheets.reaction.visible}
+            onClose={closeBottomSheets}
+            title="Reaction Details"
+          >
+            {/* Reaction details content */}
+          </BottomSheet>
+          
+          <BottomSheet
+            visible={bottomSheets.participant.visible}
+            onClose={closeBottomSheets}
+            title="Participant Details"
+          >
+            {/* Participant details content */}
+          </BottomSheet>
         </View>
-
-        {/* Reaction Bottom Sheet */}
-        <BottomSheet
-          isVisible={reactionBottomSheet.visible}
-          onClose={closeReactionBottomSheet}
-          title="Reaction Details"
-        >
-          <View style={styles.reactionDetails}>
-            {reactionBottomSheet.reaction && (
-              <>
-                <View style={styles.reactionHeader}>
-                  <Text style={styles.reactionEmoji}>
-                    {reactionBottomSheet.reaction.emoji}
-                  </Text>
-                  <Text style={styles.reactionCountText}>
-                    {reactionBottomSheet.reaction.count} {
-                      reactionBottomSheet.reaction.count === 1 ? 'person' : 'people'
-                    } reacted
-                  </Text>
-                </View>
-                
-                {/* List of participants who reacted */}
-                <View style={styles.participantsList}>
-                  {reactionBottomSheet.reaction.participants?.map((participantId, index) => {
-                    const participant = participants.find(p => p.uuid === participantId) || 
-                                     { uuid: participantId, name: participantId === 'you' ? 'You' : 'Unknown' };
-                    
-                    return (
-                      <View key={`${participantId}-${index}`} style={styles.participantItem}>
-                        <Text style={styles.participantName}>
-                          {participant.name}
-                        </Text>
-                      </View>
-                    );
-                  }) || (
-                    <Text style={styles.noParticipantsText}>
-                      No reaction data available
-                    </Text>
-                  )}
-                </View>
-              </>
-            )}
-          </View>
-        </BottomSheet>
-
-        {/* Participant Bottom Sheet */}
-        <BottomSheet
-          isVisible={participantBottomSheet.visible}
-          onClose={closeParticipantBottomSheet}
-          title="Participant Details"
-        >
-          <View style={styles.participantDetails}>
-            {participantBottomSheet.participant && (
-              <>
-                <View style={styles.participantHeader}>
-                  <Text style={styles.participantDisplayName}>
-                    {participantBottomSheet.participant.name || 'Unknown User'}
-                  </Text>
-                  <Text style={styles.participantId}>
-                    ID: {participantBottomSheet.participant.uuid}
-                  </Text>
-                </View>
-                
-                <View style={styles.participantInfo}>
-                  <Text style={styles.participantInfoText}>
-                    {participantBottomSheet.participant.uuid === 'you' ? 
-                      'This is you!' 
-                      : 'Chat participant'
-                    }
-                  </Text>
-                </View>
-              </>
-            )}
-          </View>
-        </BottomSheet>
       </SafeAreaView>
-    </SimpleErrorBoundary>
+    </EnhancedErrorBoundary>
   );
 };
 
@@ -607,217 +677,120 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  
   chatContainer: {
     flex: 1,
   },
-  
-  // Connection status styles
+  messagesList: {
+    flex: 1,
+  },
+  messagesContent: {
+    paddingVertical: 8,
+  },
+  messagesContentEmpty: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
   connectionBanner: {
     backgroundColor: colors.warning,
     paddingVertical: 8,
     paddingHorizontal: 16,
     alignItems: 'center',
   },
-  
   connectionText: {
-    color: colors.text,
+    color: colors.background,
     fontSize: 14,
     fontWeight: '500',
   },
-  
-  retryText: {
-    color: colors.textMuted,
-    fontSize: 12,
-    marginTop: 2,
+  retryTextContainer: {
+    marginTop: 4,
   },
-  
+  retryText: {
+    color: colors.background,
+    fontSize: 12,
+    opacity: 0.8,
+  },
   syncBanner: {
-    backgroundColor: colors.info,
-    paddingVertical: 8,
+    backgroundColor: colors.primary,
+    paddingVertical: 6,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  
   syncText: {
     color: colors.background,
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 12,
     marginLeft: 8,
   },
-  
-  // Messages list styles
-  messagesList: {
-    flex: 1,
-  },
-  
-  messagesListContent: {
-    padding: 12,
-    paddingBottom: 20,
-  },
-  
-  messagesListEmpty: {
-    flexGrow: 1,
-    justifyContent: 'center',
-  },
-  
-  // Loading footer styles
-  loadingFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-  },
-  
-  loadingText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: colors.textMuted,
-  },
-  
-  // Empty state styles
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 40,
-    paddingHorizontal: 20,
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    paddingVertical: 64,
   },
-  
   emptyStateTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 8,
-  },
-  
-  emptyStateSubtitle: {
-    fontSize: 14,
-    color: colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  
-  // Error state styles
-  errorState: {
-    alignItems: 'center',
-    paddingVertical: 20,
-    paddingHorizontal: 20,
-    backgroundColor: colors.surface,
-    marginHorizontal: 12,
-    marginVertical: 8,
-    borderRadius: 8,
-  },
-  
-  errorTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.error,
-    marginBottom: 8,
-  },
-  
-  errorMessage: {
-    fontSize: 14,
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  
-  retryButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  
-  retryButtonText: {
-    color: colors.background,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  
-  // Bottom sheet content styles
-  reactionDetails: {
-    padding: 16,
-  },
-  
-  reactionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  
-  reactionEmoji: {
-    fontSize: 24,
-    marginRight: 8,
-  },
-  
-  reactionCountText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  
-  participantsList: {
-    gap: 8,
-  },
-  
-  participantItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: colors.surface,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  
-  participantName: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: colors.text,
-  },
-  
-  noParticipantsText: {
-    fontSize: 14,
-    color: colors.textMuted,
-    fontStyle: 'italic',
-    textAlign: 'center',
-    padding: 16,
-  },
-  
-  // Participant details styles
-  participantDetails: {
-    padding: 16,
-  },
-  
-  participantHeader: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  
-  participantDisplayName: {
     fontSize: 20,
     fontWeight: '600',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  
-  participantId: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  
-  participantInfo: {
-    padding: 16,
-    backgroundColor: colors.surface,
-    borderRadius: 8,
-  },
-  
-  participantInfoText: {
-    fontSize: 14,
-    color: colors.textMuted,
+    color: colors.text.primary,
+    marginBottom: 8,
     textAlign: 'center',
+  },
+  emptyStateSubtitle: {
+    fontSize: 16,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  errorState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    paddingVertical: 32,
+    backgroundColor: colors.error.background,
+    marginHorizontal: 16,
+    marginVertical: 8,
+    borderRadius: 12,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: colors.background,
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.error.text,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  errorMessage: {
+    fontSize: 14,
+    color: colors.error.text,
+    textAlign: 'center',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  errorHint: {
+    fontSize: 12,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: 16,
+    fontStyle: 'italic',
+  },
+  retryButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  retryButtonText: {
+    color: colors.background,
+    fontSize: 16,
+    fontWeight: '500',
   },
 });
 
-export default React.memo(ChatScreen);
+export default ChatScreen;
