@@ -8,7 +8,7 @@ import DateSeparator from './DateSeparator';
  * A message group handles rendering one or more consecutive messages
  * from the same participant, optionally separated by date.
  */
-const MessageGroup = ({ group, onReact, onReactionPress }) => {
+const MessageGroup = ({ group, onReact, onReactionPress, onParticipantPress }) => {
   if (!group) return null;
 
   return (
@@ -19,11 +19,12 @@ const MessageGroup = ({ group, onReact, onReactionPress }) => {
       )}
 
       {/* Main message bubble */}
-      <MessageBubble 
-        message={group} 
+      <MessageBubble
+        message={group}
         isGrouped={group.isGrouped || false}
         onReact={onReact}
         onReactionPress={onReactionPress}
+        onParticipantPress={onParticipantPress}
       />
     </View>
   );
