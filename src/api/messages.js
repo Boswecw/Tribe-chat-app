@@ -95,12 +95,22 @@ export const fetchUpdatedMessages = async (since) => {
 
 /**
  * Send a new message
- * @param {string} text - Message text content
+ * @param {Object} payload - Message payload
+ * @param {string} payload.text - Message text content
+ * @param {string} [payload.replyToMessage] - UUID of the message being replied to
  */
-export const sendMessage = async (text) => {
+export const sendMessage = async (payload) => {
   try {
-    const res = await axios.post(`${BASE_URL}/messages/new`, { text });
-    return res.data;
+    const res = await axios.post(`${BASE_URL}/messages/new`, payload);
+
+    const message = res.data;
+
+    // Ensure reply metadata is present in response if provided in payload
+    if (payload?.replyToMessage && !message.replyToMessage) {
+      message.replyToMessage = { uuid: payload.replyToMessage };
+    }
+
+    return message;
   } catch (err) {
     console.error('❌ Failed to send message:', err);
     throw new Error(`Failed to send message: ${err.message}`);

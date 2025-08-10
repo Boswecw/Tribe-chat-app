@@ -31,7 +31,13 @@ const InputBar = () => {
         ...(isReplying && replyTo ? { replyToMessage: replyTo.uuid } : {}),
       };
 
-      const newMessage = await sendMessage(payload.text); // NOTE: adjust if you customize API
+      const newMessage = await sendMessage(payload);
+
+      // Ensure reply metadata is preserved locally
+      if (payload.replyToMessage && !newMessage.replyToMessage) {
+        newMessage.replyToMessage = replyTo;
+      }
+
       addMessage(newMessage);
       setText('');
       cancelReply();
