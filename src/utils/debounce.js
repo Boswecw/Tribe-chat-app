@@ -45,8 +45,7 @@ export const throttle = (func, limit) => {
   let inThrottle;
   let lastFunc;
   let lastRan;
-  
-  return function(...args) {
+  const throttled = function(...args) {
     if (!inThrottle) {
       func.apply(this, args);
       lastRan = Date.now();
@@ -61,6 +60,14 @@ export const throttle = (func, limit) => {
       }, limit - (Date.now() - lastRan));
     }
   };
+
+  throttled.cancel = () => {
+    clearTimeout(lastFunc);
+    inThrottle = false;
+    lastFunc = null;
+  };
+
+  return throttled;
 };
 
 /**

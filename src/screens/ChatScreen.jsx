@@ -25,6 +25,7 @@ import { fetchLatestMessages, sendReaction } from '../api/messages';
 
 // Utility imports
 import { groupMessages } from '../utils/groupMessages';
+import { debounce, throttle } from '../utils/debounce';
 
 // Hook imports
 import useChatSync from '../hooks/useChatSync';
@@ -37,39 +38,6 @@ import BottomSheet from '../components/BottomSheet';
 
 // Constants imports
 import colors from '../constants/colors';
-
-// --- Utils (cancellable debounce + throttle) ---
-const debounce = (func, wait) => {
-  let timeout;
-  const debounced = (...args) => {
-    const later = () => {
-      timeout && clearTimeout(timeout);
-      func(...args);
-    };
-    timeout && clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-  debounced.cancel = () => {
-    if (timeout) {
-      clearTimeout(timeout);
-      timeout = null;
-    }
-  };
-  return debounced;
-};
-
-const throttle = (func, limit) => {
-  let inThrottle = false;
-  return function (...args) {
-    if (!inThrottle) {
-      func.apply(this, args);
-      inThrottle = true;
-      setTimeout(() => {
-        inThrottle = false;
-      }, limit);
-    }
-  };
-};
 
 // Request queue for preventing 409 conflicts
 class RequestQueue {
@@ -487,7 +455,10 @@ const ChatScreen = () => {
 
   useEffect(() => {
     return () => {
-      if (debouncedScrollToBottom.cancel) debouncedScrollToBottom.cancel();
+      // Only cancel if your debounce util exposes a cancel() method
+      if (debouncedScrollToBottom && typeof debouncedScrollToBottom.cancel === 'function') {
+        debouncedScrollToBottom.cancel();
+      }
     };
   }, [debouncedScrollToBottom]);
 
