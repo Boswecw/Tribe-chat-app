@@ -209,7 +209,8 @@ class EnhancedErrorBoundary extends React.Component {
 const MemoizedMessageGroup = memo(MessageGroup, (prevProps, nextProps) => {
   return (
     prevProps.group.uuid === nextProps.group.uuid &&
-    prevProps.group.messages?.length === nextProps.group.messages?.length &&
+    prevProps.group.text === nextProps.group.text &&
+    prevProps.group.status === nextProps.group.status &&
     JSON.stringify(prevProps.group.reactions) === JSON.stringify(nextProps.group.reactions)
   );
 });
