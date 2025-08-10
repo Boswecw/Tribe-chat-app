@@ -204,7 +204,9 @@ export const getMessageReactions = async (messageId) => {
   }
 
   try {
-    const response = await apiClient.get(`/messages/${messageId}/reactions`);
+    const response = await withRetry(() =>
+      apiClient.get(`/messages/${messageId}/reactions`)
+    );
     return response.data;
   } catch (error) {
     if (error.response?.status === 404) {
