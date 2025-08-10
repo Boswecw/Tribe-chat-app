@@ -25,6 +25,7 @@ import { fetchLatestMessages, sendReaction } from '../api/messages';
 
 // Utility imports
 import { groupMessages } from '../utils/groupMessages';
+import { debounce, throttle } from '../utils/debounce';
 
 // Hook imports
 import useChatSync from '../hooks/useChatSync';
@@ -37,30 +38,6 @@ import BottomSheet from '../components/BottomSheet';
 
 // Constants imports
 import colors from '../constants/colors';
-
-// Utility functions
-const debounce = (func, wait) => {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-};
-
-const throttle = (func, limit) => {
-  let inThrottle;
-  return function(...args) {
-    if (!inThrottle) {
-      func.apply(this, args);
-      inThrottle = true;
-      setTimeout(() => inThrottle = false, limit);
-    }
-  };
-};
 
 // Request queue for preventing 409 conflicts
 class RequestQueue {
@@ -541,8 +518,14 @@ const ChatScreen = () => {
       if (debouncedScrollToBottom.cancel) {
         debouncedScrollToBottom.cancel();
       }
+      if (throttledRefresh.cancel) {
+        throttledRefresh.cancel();
+      }
+      if (handleReact.cancel) {
+        handleReact.cancel();
+      }
     };
-  }, [debouncedScrollToBottom]);
+  }, [debouncedScrollToBottom, throttledRefresh, handleReact]);
 
   // Empty state
   const renderEmptyState = useCallback(() => (
