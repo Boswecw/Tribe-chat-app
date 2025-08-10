@@ -1,87 +1,20 @@
 // src/utils/debounce.js
-/**
- * Debounce function - delays execution until after wait time has elapsed
- * since the last time it was invoked
- */
-export const debounce = (func, wait, immediate = false) => {
-  let timeout;
-  
-  const debounced = function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      timeout = null;
-      if (!immediate) func.apply(this, args);
-    };
-    
-    const callNow = immediate && !timeout;
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-    
-    if (callNow) func.apply(this, args);
-  };
-  
-  // Add cancel method to clear pending execution
-  debounced.cancel = () => {
-    clearTimeout(timeout);
-    timeout = null;
-  };
-  
-  // Add flush method to execute immediately
-  debounced.flush = function(...args) {
-    if (timeout) {
-      clearTimeout(timeout);
-      timeout = null;
-      func.apply(this, args);
-    }
-  };
-  
-  return debounced;
-};
 
 /**
- * Throttle function - limits execution to once per limit period
- */
-export const throttle = (func, limit) => {
-  let inThrottle;
-  let lastFunc;
-  let lastRan;
-  const throttled = function(...args) {
-    if (!inThrottle) {
-      func.apply(this, args);
-      lastRan = Date.now();
-      inThrottle = true;
-    } else {
-      clearTimeout(lastFunc);
-      lastFunc = setTimeout(() => {
-        if ((Date.now() - lastRan) >= limit) {
-          func.apply(this, args);
-          lastRan = Date.now();
-        }
-      }, limit - (Date.now() - lastRan));
-    }
-  };
-
-  throttled.cancel = () => {
-    clearTimeout(lastFunc);
-    inThrottle = false;
-    lastFunc = null;
-  };
-
-  return throttled;
-};
-
-/**
- * Advanced debounce with leading and trailing options
+ * Advanced debounce with support for leading/trailing edge and maxWait.
+ * Based on lodash's debounce implementation.
  */
 export const advancedDebounce = (func, wait, options = {}) => {
   const { leading = false, trailing = true, maxWait } = options;
-  let timeout;
-  let maxTimeout;
+
+  let lastArgs, lastThis;
+  let result;
+  let timerId;
   let lastCallTime;
   let lastInvokeTime = 0;
-  let result;
+  const useMaxWait = typeof maxWait === 'number';
 
-  function invokeFunc(time) {
+  const invokeFunc = (time) => {
     const args = lastArgs;
     const thisArg = lastThis;
 
@@ -89,55 +22,56 @@ export const advancedDebounce = (func, wait, options = {}) => {
     lastInvokeTime = time;
     result = func.apply(thisArg, args);
     return result;
-  }
+  };
 
-  function leadingEdge(time) {
+  const startTimer = (pendingFunc, waitTime) => setTimeout(pendingFunc, waitTime);
+
+  const leadingEdge = (time) => {
     lastInvokeTime = time;
-    timeout = setTimeout(timerExpired, wait);
+    timerId = startTimer(timerExpired, wait);
     return leading ? invokeFunc(time) : result;
-  }
+  };
 
-  function remainingWait(time) {
+  const remainingWait = (time) => {
     const timeSinceLastCall = time - lastCallTime;
     const timeSinceLastInvoke = time - lastInvokeTime;
     const timeWaiting = wait - timeSinceLastCall;
-
-    return maxWait !== undefined
+    return useMaxWait
       ? Math.min(timeWaiting, maxWait - timeSinceLastInvoke)
       : timeWaiting;
-  }
+  };
 
-  function shouldInvoke(time) {
+  const shouldInvoke = (time) => {
     const timeSinceLastCall = time - lastCallTime;
     const timeSinceLastInvoke = time - lastInvokeTime;
 
-    return (lastCallTime === undefined || 
-            timeSinceLastCall >= wait ||
-            timeSinceLastCall < 0 || 
-            (maxWait !== undefined && timeSinceLastInvoke >= maxWait));
-  }
+    return (
+      lastCallTime === undefined ||
+      timeSinceLastCall >= wait ||
+      timeSinceLastCall < 0 ||
+      (useMaxWait && timeSinceLastInvoke >= maxWait)
+    );
+  };
 
-  function timerExpired() {
+  const timerExpired = () => {
     const time = Date.now();
     if (shouldInvoke(time)) {
       return trailingEdge(time);
     }
-    timeout = setTimeout(timerExpired, remainingWait(time));
-  }
+    timerId = startTimer(timerExpired, remainingWait(time));
+  };
 
-  function trailingEdge(time) {
-    timeout = undefined;
+  const trailingEdge = (time) => {
+    timerId = undefined;
 
     if (trailing && lastArgs) {
       return invokeFunc(time);
     }
     lastArgs = lastThis = undefined;
     return result;
-  }
+  };
 
-  let lastArgs, lastThis;
-
-  function debounced(...args) {
+  const debounced = function (...args) {
     const time = Date.now();
     const isInvoking = shouldInvoke(time);
 
@@ -146,67 +80,84 @@ export const advancedDebounce = (func, wait, options = {}) => {
     lastCallTime = time;
 
     if (isInvoking) {
-      if (timeout === undefined) {
+      if (timerId === undefined) {
         return leadingEdge(lastCallTime);
       }
-      if (maxWait) {
-        timeout = setTimeout(timerExpired, wait);
+      if (useMaxWait) {
+        timerId = startTimer(timerExpired, wait);
         return invokeFunc(lastCallTime);
       }
     }
-    if (timeout === undefined) {
-      timeout = setTimeout(timerExpired, wait);
+    if (timerId === undefined) {
+      timerId = startTimer(timerExpired, wait);
     }
     return result;
-  }
+  };
 
   debounced.cancel = () => {
-    if (timeout !== undefined) {
-      clearTimeout(timeout);
-    }
-    if (maxTimeout !== undefined) {
-      clearTimeout(maxTimeout);
+    if (timerId !== undefined) {
+      clearTimeout(timerId);
     }
     lastInvokeTime = 0;
-    lastArgs = lastCallTime = lastThis = timeout = undefined;
+    lastArgs = lastCallTime = lastThis = timerId = undefined;
   };
 
-  debounced.flush = () => {
-    return timeout === undefined ? result : trailingEdge(Date.now());
-  };
+  debounced.flush = () =>
+    timerId === undefined ? result : trailingEdge(Date.now());
 
   return debounced;
 };
+
+/**
+ * Basic debounce API built on top of advancedDebounce.
+ * If `immediate` is true, the function fires on the leading edge.
+ */
+export const debounce = (func, wait, immediate = false) =>
+  advancedDebounce(func, wait, { leading: immediate, trailing: !immediate });
+
+/**
+ * Throttle implementation using advancedDebounce.
+ * Invokes the function at most once per `limit` milliseconds.
+ */
+export const throttle = (func, limit) =>
+  advancedDebounce(func, limit, {
+    leading: true,
+    trailing: true,
+    maxWait: limit
+  });
 
 /**
  * Request deduplication utility
  */
 export const createRequestDeduplicator = () => {
   const pendingRequests = new Map();
-  
+
   return {
     deduplicate: (key, requestFn) => {
       if (pendingRequests.has(key)) {
         return pendingRequests.get(key);
       }
-      
-      const promise = requestFn()
-        .finally(() => {
-          pendingRequests.delete(key);
-        });
-      
+
+      const promise = requestFn().finally(() => {
+        pendingRequests.delete(key);
+      });
+
       pendingRequests.set(key, promise);
       return promise;
     },
-    
+
     clear: () => {
       pendingRequests.clear();
     },
-    
-    hasPending: (key) => {
-      return pendingRequests.has(key);
-    }
+
+    hasPending: (key) => pendingRequests.has(key)
   };
 };
 
-export default { debounce, throttle, advancedDebounce, createRequestDeduplicator };
+export default {
+  debounce,
+  throttle,
+  advancedDebounce,
+  createRequestDeduplicator
+};
+
