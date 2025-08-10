@@ -210,7 +210,8 @@ const MemoizedMessageGroup = memo(MessageGroup, (prevProps, nextProps) => {
   return (
     prevProps.group.uuid === nextProps.group.uuid &&
     prevProps.group.messages?.length === nextProps.group.messages?.length &&
-    JSON.stringify(prevProps.group.reactions) === JSON.stringify(nextProps.group.reactions)
+    JSON.stringify(prevProps.group.reactions) === JSON.stringify(nextProps.group.reactions) &&
+    prevProps.onParticipantPress === nextProps.onParticipantPress
   );
 });
 
