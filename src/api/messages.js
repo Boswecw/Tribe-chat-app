@@ -42,7 +42,7 @@ const withRetry = async (fn, retries = MAX_RETRIES) => {
 // ===== Message fetchers =====
 export const fetchLatestMessages = async () => {
   try {
-    const res = await apiClient.get('/messages/latest');
+    const res = await withRetry(() => apiClient.get('/messages/latest'));
     return res.data;
   } catch (err) {
     console.error('❌ Failed to fetch latest messages:', err);
@@ -50,15 +50,17 @@ export const fetchLatestMessages = async () => {
   }
 };
 
-export const fetchAllMessages = async () =>
+export const fetchAllMessages = () =>
   withRetry(async () => (await apiClient.get('/messages/all')).data);
 
-export const fetchOlderMessages = async (refMessageUuid) =>
+export const fetchOlderMessages = (refMessageUuid) =>
   withRetry(async () => (await apiClient.get(`/messages/older/${refMessageUuid}`)).data);
 
 export const fetchUpdatedMessages = async (since) => {
   try {
-    const res = await apiClient.get(`/messages/updates/${since}`);
+    const res = await withRetry(() =>
+      apiClient.get(`/messages/updates/${since}`)
+    );
     return res.data;
   } catch (err) {
     console.error('❌ Failed to fetch updated messages:', err);
