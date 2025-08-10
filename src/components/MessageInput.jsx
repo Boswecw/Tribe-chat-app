@@ -31,7 +31,14 @@ const MessageInput = () => {
         ...(isReplying && replyTo ? { replyToMessage: replyTo.uuid } : {}),
       };
 
-      const newMessage = await sendMessage(payload.text); // NOTE: adjust if you customize API
+      // ✅ send the entire payload so replies include metadata
+      const newMessage = await sendMessage(payload);
+
+      // Normalize reply locally if backend omits detailed data
+      if (payload.replyToMessage && !newMessage.replyToMessage) {
+        newMessage.replyToMessage = replyTo;
+      }
+
       addMessage(newMessage);
       setText('');
       cancelReply();
