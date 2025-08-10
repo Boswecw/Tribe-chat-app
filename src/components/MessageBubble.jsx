@@ -1,21 +1,24 @@
 // Enhanced MessageBubble.jsx - Clean version that passes ESLint
 import React, { useState, useCallback, useMemo } from 'react';
-import { 
-  View, 
-  Text, 
-  Image, 
-  StyleSheet, 
-  TouchableOpacity, 
+import {
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
   Alert,
-  AccessibilityInfo 
+  AccessibilityInfo
 } from 'react-native';
 import Avatar from './Avatar';
 import ReactionRow from './ReactionRow';
 import { formatTime } from '../utils/formatDate';
+import { useTheme } from '../constants/theme';
+import { createStyles } from './MessageBubble.styles';
 
 const MessageBubble = ({ message, isGrouped, onReact, onReactionPress, onParticipantPress }) => {
   const [showReactionRow, setShowReactionRow] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   
   const participant = message.participant;
   const displayName = participant?.name || 'Unknown';
@@ -298,236 +301,4 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress, onPartici
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: 12,
-    width: '100%',
-  },
-  
-  containerGrouped: {
-    marginTop: 2,
-  },
-  
-  containerNotGrouped: {
-    marginTop: 12,
-  },
-  
-  containerOwn: {
-    alignItems: 'flex-end',
-  },
-  
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 2,
-    gap: 8,
-    width: '100%',
-  },
-  
-  name: {
-    fontWeight: '600',
-    marginLeft: 6,
-    flexShrink: 1,
-    color: '#333',
-  },
-  
-  time: {
-    marginLeft: 'auto',
-    fontSize: 10,
-    color: '#888',
-  },
-  
-  bubble: {
-    backgroundColor: '#f0f0f0',
-    borderRadius: 12,
-    padding: 12,
-    position: 'relative',
-    maxWidth: '80%',
-    alignSelf: 'flex-start',
-  },
-  
-  bubbleOwn: {
-    backgroundColor: '#007AFF',
-    alignSelf: 'flex-end',
-  },
-  
-  text: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: '#333',
-  },
-  
-  textOwn: {
-    color: '#FFFFFF',
-  },
-  
-  edited: {
-    fontSize: 10,
-    color: '#888',
-    marginTop: 4,
-    fontStyle: 'italic',
-  },
-  
-  image: {
-    marginTop: 8,
-    height: 200,
-    borderRadius: 8,
-    backgroundColor: '#f5f5f5',
-  },
-  
-  imageLoadingOverlay: {
-    position: 'absolute',
-    top: 8,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  
-  imageLoadingText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  
-  existingReactions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 8,
-    gap: 6,
-  },
-  
-  reactionBubble: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#e3f2fd',
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: '#90caf9',
-  },
-  
-  reactionBubbleActive: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
-  },
-  
-  reactionEmoji: {
-    fontSize: 12,
-    marginRight: 4,
-  },
-  
-  reactionCount: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#1976d2',
-  },
-  
-  reactionCountActive: {
-    color: '#FFFFFF',
-  },
-  
-  addReactionButton: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 12,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  
-  // ✅ NEW: Disabled button styles
-  addReactionButtonDisabled: {
-    backgroundColor: 'rgba(200, 200, 200, 0.5)',
-    borderColor: '#ccc',
-  },
-  
-  addReactionText: {
-    fontSize: 12,
-    color: '#666',
-  },
-  
-  // ✅ NEW: Disabled text styles
-  addReactionTextDisabled: {
-    color: '#999',
-  },
-  
-  reactionRowContainer: {
-    marginTop: 8,
-    marginLeft: 8,
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 8,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  
-  replyToContainer: {
-    flexDirection: 'row',
-    marginTop: 8,
-    marginLeft: 8,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 6,
-    padding: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: '#007AFF',
-  },
-  
-  replyToLine: {
-    width: 3,
-    backgroundColor: '#007AFF',
-    borderRadius: 2,
-    marginRight: 8,
-  },
-  
-  replyToContent: {
-    flex: 1,
-  },
-  
-  replyToLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#007AFF',
-    marginBottom: 2,
-  },
-  
-  replyToText: {
-    fontSize: 12,
-    color: '#666',
-    lineHeight: 16,
-  },
-  
-  statusContainer: {
-    marginTop: 4,
-    alignItems: 'flex-end',
-  },
-  
-  statusText: {
-    fontSize: 10,
-    color: '#888',
-  },
-  
-  statusFailed: {
-    color: '#dc3545',
-  },
-  
-  statusSending: {
-    color: '#6c757d',
-  },
-});
-
 export default React.memo(MessageBubble);
