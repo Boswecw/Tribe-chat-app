@@ -3,6 +3,7 @@
     "name": "tribe-chat-app",
     "slug": "tribe-chat-app",
     "version": "1.0.0",
+    "jsEngine": "jsc",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "tribechatapp",
@@ -20,7 +21,6 @@
     },
     "web": {
       "bundler": "metro",
-      "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
