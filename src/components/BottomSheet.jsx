@@ -3,10 +3,11 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import Modal from 'react-native-modal';
 
-const BottomSheet = ({ isVisible, onClose, title, children }) => {
+// Accept a `visible` prop for consistency with callers
+const BottomSheet = ({ visible, onClose, title, children }) => {
   return (
     <Modal
-      isVisible={isVisible}
+      isVisible={visible}
       onBackdropPress={onClose}
       onSwipeComplete={onClose}
       swipeDirection="down"
