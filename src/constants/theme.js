@@ -2,7 +2,7 @@
 // src/constants/theme.js
 import { useColorScheme } from 'react-native';
 
-const lightTheme = {
+export const lightTheme = {
   colors: {
     primary: '#007AFF',
     primaryLight: '#4A9EFF',
@@ -78,7 +78,7 @@ const lightTheme = {
   },
 };
 
-const darkTheme = {
+export const darkTheme = {
   ...lightTheme,
   colors: {
     ...lightTheme.colors,
