@@ -1,5 +1,5 @@
 // src/hooks/useAsyncOperation.js
-import { useState, useCallback } from 'react';
+import { useState, useCallback } from "react";
 
 export const useAsyncOperation = () => {
   const [loading, setLoading] = useState(false);
@@ -13,7 +13,8 @@ export const useAsyncOperation = () => {
       onSuccess?.(result);
       return result;
     } catch (err) {
-      const errorMessage = err.response?.data?.message || err.message || 'An error occurred';
+      const errorMessage =
+        err.response?.data?.message || err.message || "An error occurred";
       setError(errorMessage);
       onError?.(err);
       throw err;

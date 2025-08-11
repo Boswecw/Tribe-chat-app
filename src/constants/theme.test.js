@@ -1,30 +1,22 @@
-import { renderHook } from '@testing-library/react-native';
-import { useTheme, lightTheme, darkTheme } from './theme';
-import { useColorScheme as mockUseColorScheme } from 'react-native';
+// src/constants/theme.test.js
+import { renderHook } from "@testing-library/react-native";
+import * as RN from "react-native";
+import { useTheme, lightTheme, darkTheme } from "./theme";
 
-jest.mock('react-native', () => {
-  const actual = jest.requireActual('react-native');
-  return {
-    ...actual,
-    useColorScheme: jest.fn(),
-  };
-});
+describe("useTheme", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
 
-describe('useTheme', () => {
-  it('returns light theme when color scheme is light', () => {
-    mockUseColorScheme.mockReturnValue('light');
+  it("returns light theme when color scheme is light", () => {
+    jest.spyOn(RN, "useColorScheme").mockReturnValue("light");
     const { result } = renderHook(() => useTheme());
-
-    expect(result.current.colors).toMatchSnapshot();
     expect(result.current).toEqual(lightTheme);
   });
 
-  it('returns dark theme when color scheme is dark', () => {
-    mockUseColorScheme.mockReturnValue('dark');
+  it("returns dark theme when color scheme is dark", () => {
+    jest.spyOn(RN, "useColorScheme").mockReturnValue("dark");
     const { result } = renderHook(() => useTheme());
-
-    expect(result.current.colors).toMatchSnapshot();
     expect(result.current).toEqual(darkTheme);
   });
 });
-

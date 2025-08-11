@@ -1,4 +1,4 @@
-// src/screens/ChatScreen.jsx - Fixed ESLint issues version
+// src/screens/ChatScreen.jsx
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { View, StyleSheet, Text, Alert, AccessibilityInfo, ActivityIndicator, TouchableOpacity, AppState } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -31,19 +31,13 @@ import MessageList from '../components/MessageList';
 import colors from '../constants/colors';
 import { requestQueue } from './requestQueue';
 
-// Constants
 const REACTION_THROTTLE_MS = 1000;
 
 // Enhanced ErrorBoundary with 409 error handling
 class EnhancedErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = {
-      hasError: false,
-      error: null,
-      retryCount: 0,
-      lastError: null
-    };
+    this.state = { hasError: false, error: null, retryCount: 0 };
   }
 
   static getDerivedStateFromError(error) {
@@ -52,32 +46,23 @@ class EnhancedErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
-
-    if (__DEV__) {
-      if (
-        error.message?.includes('Network request failed') ||
-        error.message?.includes('409') ||
-        error.message?.includes('createEntryFileAsync')
-      ) {
-        console.warn('🚨 Development server issue detected - consider restarting');
-        console.warn('Common causes: Rapid re-renders, concurrent requests, or Metro bundler conflicts');
-      }
+    if (__DEV__ && (error.message?.includes('Network request failed') || error.message?.includes('409'))) {
+      console.warn('🚨 Development server issue detected - consider restarting');
     }
-
     if (this.state.retryCount < 3 && this.shouldAutoRecover(error)) {
       setTimeout(() => {
-        this.setState((prevState) => ({
+        this.setState(prev => ({
           hasError: false,
           error: null,
-          retryCount: prevState.retryCount + 1
+          retryCount: prev.retryCount + 1,
         }));
       }, 2000);
     }
   }
 
   shouldAutoRecover(error) {
-    const recoverableErrors = ['Network request failed', 'Connection timeout', '409', 'Request conflict'];
-    return recoverableErrors.some((msg) => error.message?.includes(msg));
+    const recoverable = ['Network request failed', 'Connection timeout', '409', 'Request conflict'];
+    return recoverable.some(msg => error.message?.includes(msg));
   }
 
   handleRetry = () => {
@@ -92,33 +77,31 @@ class EnhancedErrorBoundary extends React.Component {
           <Text style={styles.errorMessage}>
             {__DEV__ && this.state.error?.message ? `Dev Error: ${this.state.error.message}` : 'Please try refreshing the app'}
           </Text>
-          {this.state.retryCount < 3 && <Text style={styles.errorHint}>Auto-retry in progress... ({this.state.retryCount}/3)</Text>}
+          {this.state.retryCount < 3 && (
+            <Text style={styles.errorHint}>Auto-retry in progress... ({this.state.retryCount}/3)</Text>
+          )}
           <TouchableOpacity style={styles.retryButton} onPress={this.handleRetry}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
       );
     }
-
     return this.props.children;
   }
 }
 
-// --- Memoized components ---
 const ChatScreen = () => {
   const { messages, setMessages, addReactionOptimistic, confirmReaction, revertReaction, clearStaleOptimisticUpdates } =
     useMessageStore();
-
   const { participants } = useParticipantStore();
   const { sessionUuid } = useSessionStore();
 
   const [bottomSheets, setBottomSheets] = useState({
     reaction: { visible: false, messageId: null, reaction: null },
-    participant: { visible: false, participant: null }
+    participant: { visible: false, participant: null },
   });
 
   const appStateRef = useRef(AppState.currentState);
-
   const { isSyncing: syncLoading } = useChatSync();
   const { execute: executeReactionOperation } = useAsyncOperation();
   const { execute: executeSyncOperation } = useAsyncOperation();
@@ -129,10 +112,9 @@ const ChatScreen = () => {
   );
 
   const processedMessages = useMemo(() => {
-    if (!messages || messages.length === 0) return [];
+    if (!messages?.length) return [];
     try {
-      const grouped = groupMessages(messages, participants);
-      return [...grouped].reverse();
+      return [...groupMessages(messages, participants)].reverse();
     } catch (error) {
       console.error('Error processing messages:', error);
       return [];
@@ -140,11 +122,9 @@ const ChatScreen = () => {
   }, [messages, participants]);
 
   const handleAppStateChange = useCallback(
-    (nextAppState) => {
+    nextAppState => {
       if (appStateRef.current.match(/inactive|background/) && nextAppState === 'active') {
-        if (sessionUuid && processedMessages.length > 0) {
-          performRefresh();
-        }
+        if (sessionUuid && processedMessages.length > 0) performRefresh();
       }
       appStateRef.current = nextAppState;
     },
@@ -152,41 +132,33 @@ const ChatScreen = () => {
   );
 
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
-    return () => subscription?.remove();
+    const sub = AppState.addEventListener('change', handleAppStateChange);
+    return () => sub?.remove();
   }, [handleAppStateChange]);
 
   const handleReactBase = useCallback(
     async (messageId, emoji) => {
       try {
         if (messageId.startsWith('temp-')) {
-          Alert.alert('Message Still Sending', 'Please wait for the message to be sent before adding reactions.');
+          Alert.alert('Message Still Sending', 'Please wait for the message to send before adding reactions.');
           return;
         }
-
         const optimisticId = addReactionOptimistic(messageId, emoji, 'you');
-
         await executeReactionOperation(
           async () => requestQueue.add(() => sendReaction(messageId, emoji, true)),
-          (response) => {
-            confirmReaction(optimisticId, response);
+          res => {
+            confirmReaction(optimisticId, res);
             AccessibilityInfo.announceForAccessibility(`Added ${emoji} reaction`);
           },
-          (error) => {
+          err => {
             revertReaction(optimisticId);
-
-            if (error?.response?.status === 409) {
-              console.warn('Reaction request conflict - will retry automatically');
+            if (err?.response?.status === 409) {
+              console.warn('Reaction conflict - retrying automatically');
               return;
             }
-
-            console.error('Failed to send reaction:', error);
             Alert.alert('Failed to Add Reaction', 'Please try again.', [
-              {
-                text: 'Retry',
-                onPress: () => handleReactBase(messageId, emoji)
-              },
-              { text: 'Cancel', style: 'cancel' }
+              { text: 'Retry', onPress: () => handleReactBase(messageId, emoji) },
+              { text: 'Cancel', style: 'cancel' },
             ]);
           }
         );
@@ -200,47 +172,30 @@ const ChatScreen = () => {
   const handleReact = useMemo(() => throttle(handleReactBase, REACTION_THROTTLE_MS), [handleReactBase]);
 
   const handleReactionPress = useCallback((messageId, reaction) => {
-    setBottomSheets((prev) => ({
-      ...prev,
-      reaction: { visible: true, messageId, reaction }
-    }));
-
-    AccessibilityInfo.announceForAccessibility(`Showing ${reaction.emoji} reaction details`);
+    setBottomSheets(prev => ({ ...prev, reaction: { visible: true, messageId, reaction } }));
   }, []);
 
-  const handleParticipantPress = useCallback((participant) => {
-    setBottomSheets((prev) => ({
-      ...prev,
-      participant: { visible: true, participant }
-    }));
-
-    AccessibilityInfo.announceForAccessibility(`Showing details for ${participant.name}`);
+  const handleParticipantPress = useCallback(participant => {
+    setBottomSheets(prev => ({ ...prev, participant: { visible: true, participant } }));
   }, []);
 
   const closeBottomSheets = useCallback(() => {
     setBottomSheets({
       reaction: { visible: false, messageId: null, reaction: null },
-      participant: { visible: false, participant: null }
+      participant: { visible: false, participant: null },
     });
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      if (sessionUuid && processedMessages.length === 0) {
-        throttledRefresh();
-      }
-
+      if (sessionUuid && processedMessages.length === 0) throttledRefresh();
       clearStaleOptimisticUpdates();
-
-      return () => {
-        requestQueue.clear();
-      };
+      return () => requestQueue.clear();
     }, [sessionUuid, processedMessages.length, throttledRefresh, clearStaleOptimisticUpdates])
   );
 
   const renderErrorState = useCallback(() => {
     if (!syncError) return null;
-
     return (
       <View style={styles.errorState}>
         <Text style={styles.errorTitle}>Unable to load messages</Text>
@@ -280,13 +235,8 @@ const ChatScreen = () => {
 
           <MessageInput />
 
-          <BottomSheet visible={bottomSheets.reaction.visible} onClose={closeBottomSheets} title="Reaction Details">
-            {/* Reaction details content */}
-          </BottomSheet>
-
-          <BottomSheet visible={bottomSheets.participant.visible} onClose={closeBottomSheets} title="Participant Details">
-            {/* Participant details content */}
-          </BottomSheet>
+          <BottomSheet visible={bottomSheets.reaction.visible} onClose={closeBottomSheets} title="Reaction Details" />
+          <BottomSheet visible={bottomSheets.participant.visible} onClose={closeBottomSheets} title="Participant Details" />
         </View>
       </SafeAreaView>
     </EnhancedErrorBoundary>
@@ -302,7 +252,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
   },
   syncText: { color: colors.background, fontSize: 12, marginLeft: 8 },
   errorState: {
@@ -313,14 +263,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.error.background,
     marginHorizontal: 16,
     marginVertical: 8,
-    borderRadius: 12
+    borderRadius: 12,
   },
   errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: colors.background },
   errorTitle: { fontSize: 18, fontWeight: '600', color: colors.error.text, marginBottom: 8, textAlign: 'center' },
   errorMessage: { fontSize: 14, color: colors.error.text, textAlign: 'center', marginBottom: 16, lineHeight: 20 },
   errorHint: { fontSize: 12, color: colors.text.secondary, textAlign: 'center', marginBottom: 16, fontStyle: 'italic' },
   retryButton: { backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
-  retryButtonText: { color: colors.background, fontSize: 16, fontWeight: '500' }
+  retryButtonText: { color: colors.background, fontSize: 16, fontWeight: '500' },
 });
 
 export default ChatScreen;
