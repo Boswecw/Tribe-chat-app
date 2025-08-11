@@ -139,3 +139,24 @@ export const createRobustStorageAdapter = (storeName = 'unknown') => {
     },
   };
 };
+
+/**
+ * Create a standard persist configuration using the robust adapter
+ */
+export const createPersistConfig = (name, additionalOptions = {}) => ({
+  name,
+  getStorage: () => createRobustStorageAdapter(name),
+  version: 1,
+  onRehydrateStorage: () => (state, error) => {
+    if (error) {
+      console.error(`[${name}] Storage rehydration failed:`, error);
+    } else if (state) {
+      console.log(`[${name}] Storage rehydrated successfully`);
+    }
+  },
+  partialize: (state) => {
+    const { optimisticMessages, ...persistentState } = state;
+    return persistentState;
+  },
+  ...additionalOptions,
+});
