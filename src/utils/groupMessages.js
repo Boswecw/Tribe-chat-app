@@ -18,7 +18,7 @@ export function groupMessages(messages) {
     grouped.push({
       ...current,
       isGrouped: isSameSender && isSameDayFlag,
-      dateSeparator: !isSameDayFlag,
+      dateSeparator: i > 0 && !isSameDayFlag,
     });
   }
 
