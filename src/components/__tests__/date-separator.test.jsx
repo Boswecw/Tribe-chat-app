@@ -21,9 +21,9 @@ describe("MessageGroup date separator", () => {
   ];
   const grouped = groupMessages(messages);
 
-  it("does not render date header for first message", () => {
-    const { queryByText } = render(<MessageGroup group={grouped[0]} />);
-    expect(queryByText(formatDate(messages[0].createdAt))).toBeNull();
+  it("renders date header for the first message", () => {
+    const { getByText } = render(<MessageGroup group={grouped[0]} />);
+    expect(getByText(formatDate(messages[0].createdAt))).toBeTruthy();
   });
 
   it("renders date header for subsequent messages on new days", () => {

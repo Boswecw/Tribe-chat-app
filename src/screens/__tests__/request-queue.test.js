@@ -38,7 +38,7 @@ describe('RequestQueue', () => {
     });
 
     const promise = requestQueue.add(request);
-    jest.runAllTimers();
+    await jest.runOnlyPendingTimersAsync();
     await expect(promise).resolves.toBe('ok');
     expect(request).toHaveBeenCalledTimes(2);
     jest.useRealTimers();
