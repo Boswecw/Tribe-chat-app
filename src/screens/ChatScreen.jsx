@@ -1,5 +1,12 @@
 // src/screens/ChatScreen.jsx - Fixed ESLint issues version
-import React, { useEffect, useState, useCallback, useMemo, useRef, memo } from 'react';
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  useRef,
+  memo,
+} from "react";
 import {
   FlatList,
   View,
@@ -10,34 +17,34 @@ import {
   AccessibilityInfo,
   ActivityIndicator,
   TouchableOpacity,
-  AppState
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+  AppState,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
 
 // Store imports
-import useMessageStore from '../state/messageStore';
-import useParticipantStore from '../state/participantStore';
-import useSessionStore from '../state/sessionStore';
+import useMessageStore from "../state/messageStore";
+import useParticipantStore from "../state/participantStore";
+import useSessionStore from "../state/sessionStore";
 
 // API imports
-import { fetchLatestMessages, sendReaction } from '../api/messages';
+import { fetchLatestMessages, sendReaction } from "../api/messages";
 
 // Utility imports
-import { groupMessages } from '../utils/groupMessages';
-import { debounce, throttle } from '../utils/debounce';
+import { groupMessages } from "../utils/groupMessages";
+import { debounce, throttle } from "../utils/debounce";
 
 // Hook imports
-import useChatSync from '../hooks/useChatSync';
-import { useAsyncOperation } from '../hooks/useAsyncOperation';
+import useChatSync from "../hooks/useChatSync";
+import { useAsyncOperation } from "../hooks/useAsyncOperation";
 
 // Component imports
-import MessageGroup from '../components/MessageGroup';
-import MessageInput from '../components/MessageInput';
-import BottomSheet from '../components/BottomSheet';
+import MessageGroup from "../components/MessageGroup";
+import MessageInput from "../components/MessageInput";
+import BottomSheet from "../components/BottomSheet";
 
 // Constants imports
-import colors from '../constants/colors';
+import colors from "../constants/colors";
 
 // Request queue for preventing 409 conflicts
 class RequestQueue {
@@ -65,9 +72,14 @@ class RequestQueue {
       resolve(result);
     } catch (error) {
       if (error?.response?.status === 409) {
-        console.warn('Request conflict detected, retrying...', error.message);
+        console.warn("Request conflict detected, retrying...", error.message);
         setTimeout(() => {
-          this.queue.unshift({ request, resolve, reject, timestamp: Date.now() });
+          this.queue.unshift({
+            request,
+            resolve,
+            reject,
+            timestamp: Date.now(),
+          });
           this.processing = false;
           this.process();
         }, 1000);
@@ -102,7 +114,7 @@ class EnhancedErrorBoundary extends React.Component {
       hasError: false,
       error: null,
       retryCount: 0,
-      lastError: null
+      lastError: null,
     };
   }
 
@@ -111,16 +123,20 @@ class EnhancedErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    console.error("ErrorBoundary caught an error:", error, errorInfo);
 
     if (__DEV__) {
       if (
-        error.message?.includes('Network request failed') ||
-        error.message?.includes('409') ||
-        error.message?.includes('createEntryFileAsync')
+        error.message?.includes("Network request failed") ||
+        error.message?.includes("409") ||
+        error.message?.includes("createEntryFileAsync")
       ) {
-        console.warn('🚨 Development server issue detected - consider restarting');
-        console.warn('Common causes: Rapid re-renders, concurrent requests, or Metro bundler conflicts');
+        console.warn(
+          "🚨 Development server issue detected - consider restarting",
+        );
+        console.warn(
+          "Common causes: Rapid re-renders, concurrent requests, or Metro bundler conflicts",
+        );
       }
     }
 
@@ -129,14 +145,19 @@ class EnhancedErrorBoundary extends React.Component {
         this.setState((prevState) => ({
           hasError: false,
           error: null,
-          retryCount: prevState.retryCount + 1
+          retryCount: prevState.retryCount + 1,
         }));
       }, 2000);
     }
   }
 
   shouldAutoRecover(error) {
-    const recoverableErrors = ['Network request failed', 'Connection timeout', '409', 'Request conflict'];
+    const recoverableErrors = [
+      "Network request failed",
+      "Connection timeout",
+      "409",
+      "Request conflict",
+    ];
     return recoverableErrors.some((msg) => error.message?.includes(msg));
   }
 
@@ -150,10 +171,19 @@ class EnhancedErrorBoundary extends React.Component {
         <View style={styles.errorContainer}>
           <Text style={styles.errorTitle}>Something went wrong</Text>
           <Text style={styles.errorMessage}>
-            {__DEV__ && this.state.error?.message ? `Dev Error: ${this.state.error.message}` : 'Please try refreshing the app'}
+            {__DEV__ && this.state.error?.message
+              ? `Dev Error: ${this.state.error.message}`
+              : "Please try refreshing the app"}
           </Text>
-          {this.state.retryCount < 3 && <Text style={styles.errorHint}>Auto-retry in progress... ({this.state.retryCount}/3)</Text>}
-          <TouchableOpacity style={styles.retryButton} onPress={this.handleRetry}>
+          {this.state.retryCount < 3 && (
+            <Text style={styles.errorHint}>
+              Auto-retry in progress... ({this.state.retryCount}/3)
+            </Text>
+          )}
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={this.handleRetry}
+          >
             <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
@@ -182,20 +212,22 @@ const MemoizedMessageGroup = memo(
   MessageGroup,
   (prevProps, nextProps) =>
     groupsEqual(prevProps.group, nextProps.group) &&
-    prevProps.onParticipantPress === nextProps.onParticipantPress
+    prevProps.onParticipantPress === nextProps.onParticipantPress,
 );
 
-MemoizedMessageGroup.displayName = 'MemoizedMessageGroup';
+MemoizedMessageGroup.displayName = "MemoizedMessageGroup";
 
 const ConnectionBanner = memo(({ status, onRetry }) => {
-  if (status === 'connected') return null;
+  if (status === "connected") return null;
 
   return (
     <View style={styles.connectionBanner}>
       <Text style={styles.connectionText}>
-        {status === 'disconnected' ? '⚠️ Connection lost. Trying to reconnect...' : 'Syncing messages...'}
+        {status === "disconnected"
+          ? "⚠️ Connection lost. Trying to reconnect..."
+          : "Syncing messages..."}
       </Text>
-      {status === 'disconnected' && (
+      {status === "disconnected" && (
         <TouchableOpacity onPress={onRetry} style={styles.retryTextContainer}>
           <Text style={styles.retryText}>Pull down to refresh</Text>
         </TouchableOpacity>
@@ -204,11 +236,17 @@ const ConnectionBanner = memo(({ status, onRetry }) => {
   );
 });
 
-ConnectionBanner.displayName = 'ConnectionBanner';
+ConnectionBanner.displayName = "ConnectionBanner";
 
 const ChatScreen = () => {
-  const { messages, setMessages, addReactionOptimistic, confirmReaction, revertReaction, clearStaleOptimisticUpdates } =
-    useMessageStore();
+  const {
+    messages,
+    setMessages,
+    addReactionOptimistic,
+    confirmReaction,
+    revertReaction,
+    clearStaleOptimisticUpdates,
+  } = useMessageStore();
 
   const { participants } = useParticipantStore();
   const { sessionUuid } = useSessionStore();
@@ -217,13 +255,13 @@ const ChatScreen = () => {
     refreshing: false,
     loadingOlder: false,
     hasMoreMessages: true,
-    connectionStatus: 'connected',
-    syncError: null
+    connectionStatus: "connected",
+    syncError: null,
   });
 
   const [bottomSheets, setBottomSheets] = useState({
     reaction: { visible: false, messageId: null, reaction: null },
-    participant: { visible: false, participant: null }
+    participant: { visible: false, participant: null },
   });
 
   const flatListRef = useRef(null);
@@ -247,13 +285,16 @@ const ChatScreen = () => {
         try {
           flatListRef.current?.scrollToEnd({ animated });
         } catch (error) {
-          console.warn('Failed to scroll to bottom:', error);
+          console.warn("Failed to scroll to bottom:", error);
         }
       }, 50);
     }
   }, []);
 
-  const debouncedScrollToBottom = useMemo(() => debounce(scrollToBottomBase, SCROLL_DEBOUNCE_MS), [scrollToBottomBase]);
+  const debouncedScrollToBottom = useMemo(
+    () => debounce(scrollToBottomBase, SCROLL_DEBOUNCE_MS),
+    [scrollToBottomBase],
+  );
 
   const processedMessages = useMemo(() => {
     if (!messages || messages.length === 0) return [];
@@ -261,7 +302,7 @@ const ChatScreen = () => {
       const grouped = groupMessages(messages, participants);
       return [...grouped].reverse();
     } catch (error) {
-      console.error('Error processing messages:', error);
+      console.error("Error processing messages:", error);
       return [];
     }
   }, [messages, participants]);
@@ -276,34 +317,43 @@ const ChatScreen = () => {
         async () => requestQueue.add(() => fetchLatestMessages()),
         (result) => {
           setMessages(result);
-          setState((prev) => ({ ...prev, connectionStatus: 'connected' }));
+          setState((prev) => ({ ...prev, connectionStatus: "connected" }));
 
-          AccessibilityInfo.announceForAccessibility(`Loaded ${result.length} messages`);
+          AccessibilityInfo.announceForAccessibility(
+            `Loaded ${result.length} messages`,
+          );
         },
         (error) => {
-          console.error('Failed to refresh messages:', error);
+          console.error("Failed to refresh messages:", error);
           setState((prev) => ({
             ...prev,
             syncError: error,
-            connectionStatus: 'disconnected'
+            connectionStatus: "disconnected",
           }));
 
           if (error?.response?.status !== 409) {
-            Alert.alert('Connection Error', 'Unable to refresh messages. Please check your internet connection.', [
-              { text: 'OK' },
-              { text: 'Retry', onPress: () => performRefresh() }
-            ]);
+            Alert.alert(
+              "Connection Error",
+              "Unable to refresh messages. Please check your internet connection.",
+              [
+                { text: "OK" },
+                { text: "Retry", onPress: () => performRefresh() },
+              ],
+            );
           }
-        }
+        },
       );
     } catch (error) {
-      console.error('Refresh operation failed:', error);
+      console.error("Refresh operation failed:", error);
     } finally {
       setState((prev) => ({ ...prev, refreshing: false }));
     }
   }, [state.refreshing, executeSyncOperation, setMessages]);
 
-  const throttledRefresh = useMemo(() => throttle(performRefresh, REFRESH_THROTTLE_MS), [performRefresh]);
+  const throttledRefresh = useMemo(
+    () => throttle(performRefresh, REFRESH_THROTTLE_MS),
+    [performRefresh],
+  );
 
   useEffect(() => {
     const currentCount = processedMessages.length;
@@ -320,90 +370,119 @@ const ChatScreen = () => {
 
   const handleAppStateChange = useCallback(
     (nextAppState) => {
-      if (appStateRef.current.match(/inactive|background/) && nextAppState === 'active') {
+      if (
+        appStateRef.current.match(/inactive|background/) &&
+        nextAppState === "active"
+      ) {
         if (sessionUuid && processedMessages.length > 0) {
           performRefresh();
         }
       }
       appStateRef.current = nextAppState;
     },
-    [sessionUuid, processedMessages.length, performRefresh]
+    [sessionUuid, processedMessages.length, performRefresh],
   );
 
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    const subscription = AppState.addEventListener(
+      "change",
+      handleAppStateChange,
+    );
     return () => subscription?.remove();
   }, [handleAppStateChange]);
 
   const handleReactBase = useCallback(
     async (messageId, emoji) => {
       try {
-        if (messageId.startsWith('temp-')) {
-          Alert.alert('Message Still Sending', 'Please wait for the message to be sent before adding reactions.');
+        if (messageId.startsWith("temp-")) {
+          Alert.alert(
+            "Message Still Sending",
+            "Please wait for the message to be sent before adding reactions.",
+          );
           return;
         }
 
-        const optimisticId = addReactionOptimistic(messageId, emoji, 'you');
+        const optimisticId = addReactionOptimistic(messageId, emoji, "you");
 
         await executeReactionOperation(
-          async () => requestQueue.add(() => sendReaction(messageId, emoji, true)),
+          async () =>
+            requestQueue.add(() => sendReaction(messageId, emoji, true)),
           (response) => {
             confirmReaction(optimisticId, response);
-            AccessibilityInfo.announceForAccessibility(`Added ${emoji} reaction`);
+            AccessibilityInfo.announceForAccessibility(
+              `Added ${emoji} reaction`,
+            );
           },
           (error) => {
             revertReaction(optimisticId);
 
             if (error?.response?.status === 409) {
-              console.warn('Reaction request conflict - will retry automatically');
+              console.warn(
+                "Reaction request conflict - will retry automatically",
+              );
               return;
             }
 
-            console.error('Failed to send reaction:', error);
-            Alert.alert('Failed to Add Reaction', 'Please try again.', [
+            console.error("Failed to send reaction:", error);
+            Alert.alert("Failed to Add Reaction", "Please try again.", [
               {
-                text: 'Retry',
-                onPress: () => handleReactBase(messageId, emoji)
+                text: "Retry",
+                onPress: () => handleReactBase(messageId, emoji),
               },
-              { text: 'Cancel', style: 'cancel' }
+              { text: "Cancel", style: "cancel" },
             ]);
-          }
+          },
         );
       } catch (error) {
-        console.error('Reaction error:', error);
+        console.error("Reaction error:", error);
       }
     },
-    [addReactionOptimistic, executeReactionOperation, confirmReaction, revertReaction]
+    [
+      addReactionOptimistic,
+      executeReactionOperation,
+      confirmReaction,
+      revertReaction,
+    ],
   );
 
-  const handleReact = useMemo(() => throttle(handleReactBase, REACTION_THROTTLE_MS), [handleReactBase]);
+  const handleReact = useMemo(
+    () => throttle(handleReactBase, REACTION_THROTTLE_MS),
+    [handleReactBase],
+  );
 
   const handleReactionPress = useCallback((messageId, reaction) => {
     setBottomSheets((prev) => ({
       ...prev,
-      reaction: { visible: true, messageId, reaction }
+      reaction: { visible: true, messageId, reaction },
     }));
 
-    AccessibilityInfo.announceForAccessibility(`Showing ${reaction.emoji} reaction details`);
+    AccessibilityInfo.announceForAccessibility(
+      `Showing ${reaction.emoji} reaction details`,
+    );
   }, []);
 
   const handleParticipantPress = useCallback((participant) => {
     setBottomSheets((prev) => ({
       ...prev,
-      participant: { visible: true, participant }
+      participant: { visible: true, participant },
     }));
 
-    AccessibilityInfo.announceForAccessibility(`Showing details for ${participant.name}`);
+    AccessibilityInfo.announceForAccessibility(
+      `Showing details for ${participant.name}`,
+    );
   }, []);
 
   const closeBottomSheets = useCallback(() => {
     setBottomSheets({
       reaction: { visible: false, messageId: null, reaction: null },
-      participant: { visible: false, participant: null }
+      participant: { visible: false, participant: null },
     });
   }, []);
 
-  const keyExtractor = useCallback((item, index) => item.uuid || `message-group-${index}`, []);
+  const keyExtractor = useCallback(
+    (item, index) => item.uuid || `message-group-${index}`,
+    [],
+  );
 
   const renderItem = useCallback(
     ({ item, index }) => (
@@ -415,16 +494,16 @@ const ChatScreen = () => {
         index={index}
       />
     ),
-    [handleReact, handleReactionPress, handleParticipantPress]
+    [handleReact, handleReactionPress, handleParticipantPress],
   );
 
   const getItemLayout = useCallback(
     (data, index) => ({
       length: ITEM_APPROXIMATE_HEIGHT,
       offset: ITEM_APPROXIMATE_HEIGHT * index,
-      index
+      index,
     }),
-    []
+    [],
   );
 
   const handleScrollBeginDrag = useCallback(() => {
@@ -450,13 +529,21 @@ const ChatScreen = () => {
         }
         requestQueue.clear();
       };
-    }, [sessionUuid, processedMessages.length, throttledRefresh, clearStaleOptimisticUpdates])
+    }, [
+      sessionUuid,
+      processedMessages.length,
+      throttledRefresh,
+      clearStaleOptimisticUpdates,
+    ]),
   );
 
   useEffect(() => {
     return () => {
       // Only cancel if your debounce util exposes a cancel() method
-      if (debouncedScrollToBottom && typeof debouncedScrollToBottom.cancel === 'function') {
+      if (
+        debouncedScrollToBottom &&
+        typeof debouncedScrollToBottom.cancel === "function"
+      ) {
         debouncedScrollToBottom.cancel();
       }
     };
@@ -466,10 +553,12 @@ const ChatScreen = () => {
     () => (
       <View style={styles.emptyState}>
         <Text style={styles.emptyStateTitle}>Welcome to the chat!</Text>
-        <Text style={styles.emptyStateSubtitle}>Start a conversation by sending your first message below.</Text>
+        <Text style={styles.emptyStateSubtitle}>
+          Start a conversation by sending your first message below.
+        </Text>
       </View>
     ),
-    []
+    [],
   );
 
   const connectionBannerOnRetry = useCallback(() => {
@@ -483,7 +572,8 @@ const ChatScreen = () => {
       <View style={styles.errorState}>
         <Text style={styles.errorTitle}>Unable to load messages</Text>
         <Text style={styles.errorMessage}>
-          {state.syncError?.message || 'Something went wrong while loading messages.'}
+          {state.syncError?.message ||
+            "Something went wrong while loading messages."}
         </Text>
         <TouchableOpacity style={styles.retryButton} onPress={performRefresh}>
           <Text style={styles.retryButtonText}>Retry</Text>
@@ -496,7 +586,10 @@ const ChatScreen = () => {
     <EnhancedErrorBoundary>
       <SafeAreaView style={styles.container}>
         <View style={styles.chatContainer}>
-          <ConnectionBanner status={state.connectionStatus} onRetry={connectionBannerOnRetry} />
+          <ConnectionBanner
+            status={state.connectionStatus}
+            onRetry={connectionBannerOnRetry}
+          />
 
           {syncLoading && (
             <View style={styles.syncBanner}>
@@ -532,7 +625,10 @@ const ChatScreen = () => {
             }
             ListEmptyComponent={renderEmptyState}
             style={styles.messagesList}
-            contentContainerStyle={[styles.messagesContent, processedMessages.length === 0 && styles.messagesContentEmpty]}
+            contentContainerStyle={[
+              styles.messagesContent,
+              processedMessages.length === 0 && styles.messagesContentEmpty,
+            ]}
             accessible
             accessibilityRole="list"
             accessibilityLabel="Chat messages"
@@ -540,11 +636,19 @@ const ChatScreen = () => {
 
           <MessageInput />
 
-          <BottomSheet visible={bottomSheets.reaction.visible} onClose={closeBottomSheets} title="Reaction Details">
+          <BottomSheet
+            visible={bottomSheets.reaction.visible}
+            onClose={closeBottomSheets}
+            title="Reaction Details"
+          >
             {/* Reaction details content */}
           </BottomSheet>
 
-          <BottomSheet visible={bottomSheets.participant.visible} onClose={closeBottomSheets} title="Participant Details">
+          <BottomSheet
+            visible={bottomSheets.participant.visible}
+            onClose={closeBottomSheets}
+            title="Participant Details"
+          >
             {/* Participant details content */}
           </BottomSheet>
         </View>
@@ -558,39 +662,94 @@ const styles = StyleSheet.create({
   chatContainer: { flex: 1 },
   messagesList: { flex: 1 },
   messagesContent: { paddingVertical: 8 },
-  messagesContentEmpty: { flexGrow: 1, justifyContent: 'center' },
-  connectionBanner: { backgroundColor: colors.warning, paddingVertical: 8, paddingHorizontal: 16, alignItems: 'center' },
-  connectionText: { color: colors.background, fontSize: 14, fontWeight: '500' },
+  messagesContentEmpty: { flexGrow: 1, justifyContent: "center" },
+  connectionBanner: {
+    backgroundColor: colors.warning,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    alignItems: "center",
+  },
+  connectionText: { color: colors.background, fontSize: 14, fontWeight: "500" },
   retryTextContainer: { marginTop: 4 },
   retryText: { color: colors.background, fontSize: 12, opacity: 0.8 },
   syncBanner: {
     backgroundColor: colors.primary,
     paddingVertical: 6,
     paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center'
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
   syncText: { color: colors.background, fontSize: 12, marginLeft: 8 },
-  emptyState: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingVertical: 64 },
-  emptyStateTitle: { fontSize: 20, fontWeight: '600', color: colors.text.primary, marginBottom: 8, textAlign: 'center' },
-  emptyStateSubtitle: { fontSize: 16, color: colors.text.secondary, textAlign: 'center', lineHeight: 22 },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+    paddingVertical: 64,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: colors.text.primary,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  emptyStateSubtitle: {
+    fontSize: 16,
+    color: colors.text.secondary,
+    textAlign: "center",
+    lineHeight: 22,
+  },
   errorState: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 32,
     paddingVertical: 32,
     backgroundColor: colors.error.background,
     marginHorizontal: 16,
     marginVertical: 8,
-    borderRadius: 12
+    borderRadius: 12,
   },
-  errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: colors.background },
-  errorTitle: { fontSize: 18, fontWeight: '600', color: colors.error.text, marginBottom: 8, textAlign: 'center' },
-  errorMessage: { fontSize: 14, color: colors.error.text, textAlign: 'center', marginBottom: 16, lineHeight: 20 },
-  errorHint: { fontSize: 12, color: colors.text.secondary, textAlign: 'center', marginBottom: 16, fontStyle: 'italic' },
-  retryButton: { backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
-  retryButtonText: { color: colors.background, fontSize: 16, fontWeight: '500' }
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+    backgroundColor: colors.background,
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: colors.error.text,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  errorMessage: {
+    fontSize: 14,
+    color: colors.error.text,
+    textAlign: "center",
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  errorHint: {
+    fontSize: 12,
+    color: colors.text.secondary,
+    textAlign: "center",
+    marginBottom: 16,
+    fontStyle: "italic",
+  },
+  retryButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  retryButtonText: {
+    color: colors.background,
+    fontSize: 16,
+    fontWeight: "500",
+  },
 });
 
 export default ChatScreen;

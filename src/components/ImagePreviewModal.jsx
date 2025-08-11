@@ -1,7 +1,7 @@
 // src/components/ImagePreviewModal.jsx
-import React from 'react';
-import { Modal, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import ImageViewer from 'react-native-image-zoom-viewer';
+import React from "react";
+import { Modal, Text, TouchableOpacity, StyleSheet } from "react-native";
+import ImageViewer from "react-native-image-zoom-viewer";
 
 const ImagePreviewModal = ({ visible, imageUrl, onClose }) => {
   if (!imageUrl) return null;
@@ -29,19 +29,19 @@ const ImagePreviewModal = ({ visible, imageUrl, onClose }) => {
 
 const styles = StyleSheet.create({
   closeButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 40,
     right: 20,
     zIndex: 10,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: "rgba(0,0,0,0.6)",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
   },
   closeText: {
     fontSize: 24,
-    color: '#fff',
-    fontWeight: 'bold',
+    color: "#fff",
+    fontWeight: "bold",
     lineHeight: 24,
   },
 });

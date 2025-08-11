@@ -1,7 +1,13 @@
 // src/components/BottomSheet.jsx
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import Modal from 'react-native-modal';
+import React from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+} from "react-native";
+import Modal from "react-native-modal";
 
 // Accept a `visible` prop for consistency with callers
 const BottomSheet = ({ visible, onClose, title, children }) => {
@@ -19,9 +25,7 @@ const BottomSheet = ({ visible, onClose, title, children }) => {
           <View style={styles.dragHandle} />
           <Text style={styles.title}>{title}</Text>
         </View>
-        <ScrollView style={styles.content}>
-          {children}
-        </ScrollView>
+        <ScrollView style={styles.content}>{children}</ScrollView>
         <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
           <Text style={styles.closeText}>Close</Text>
         </TouchableOpacity>
@@ -32,29 +36,29 @@ const BottomSheet = ({ visible, onClose, title, children }) => {
 
 const styles = StyleSheet.create({
   modal: {
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
     margin: 0,
   },
   sheet: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     padding: 16,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
-    maxHeight: '70%',
+    maxHeight: "70%",
   },
   header: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 8,
   },
   dragHandle: {
     width: 50,
     height: 4,
-    backgroundColor: '#ccc',
+    backgroundColor: "#ccc",
     borderRadius: 2,
     marginBottom: 8,
   },
   title: {
-    fontWeight: '600',
+    fontWeight: "600",
     fontSize: 16,
   },
   content: {
@@ -63,11 +67,11 @@ const styles = StyleSheet.create({
   },
   closeBtn: {
     padding: 10,
-    alignItems: 'center',
+    alignItems: "center",
   },
   closeText: {
-    color: '#007bff',
-    fontWeight: '600',
+    color: "#007bff",
+    fontWeight: "600",
   },
 });
 

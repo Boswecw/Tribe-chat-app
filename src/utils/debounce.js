@@ -12,7 +12,7 @@ export const advancedDebounce = (func, wait, options = {}) => {
   let timerId;
   let lastCallTime;
   let lastInvokeTime = 0;
-  const useMaxWait = typeof maxWait === 'number';
+  const useMaxWait = typeof maxWait === "number";
 
   const invokeFunc = (time) => {
     const args = lastArgs;
@@ -24,7 +24,8 @@ export const advancedDebounce = (func, wait, options = {}) => {
     return result;
   };
 
-  const startTimer = (pendingFunc, waitTime) => setTimeout(pendingFunc, waitTime);
+  const startTimer = (pendingFunc, waitTime) =>
+    setTimeout(pendingFunc, waitTime);
 
   const leadingEdge = (time) => {
     lastInvokeTime = time;
@@ -123,7 +124,7 @@ export const throttle = (func, limit) =>
   advancedDebounce(func, limit, {
     leading: true,
     trailing: true,
-    maxWait: limit
+    maxWait: limit,
   });
 
 /**
@@ -150,7 +151,7 @@ export const createRequestDeduplicator = () => {
       pendingRequests.clear();
     },
 
-    hasPending: (key) => pendingRequests.has(key)
+    hasPending: (key) => pendingRequests.has(key),
   };
 };
 
@@ -158,6 +159,5 @@ export default {
   debounce,
   throttle,
   advancedDebounce,
-  createRequestDeduplicator
+  createRequestDeduplicator,
 };
-

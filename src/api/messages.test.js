@@ -1,5 +1,5 @@
 // src/api/messages.test.js
-describe('messages api', () => {
+describe("messages api", () => {
   let mockClient;
   let api;
   let axiosCreateMock;
@@ -15,7 +15,7 @@ describe('messages api', () => {
     };
 
     // Provide a concrete axios mock that always returns mockClient
-    jest.doMock('axios', () => {
+    jest.doMock("axios", () => {
       axiosCreateMock = jest.fn(() => mockClient);
       return {
         __esModule: true,
@@ -24,12 +24,12 @@ describe('messages api', () => {
       };
     });
 
-    api = require('./messages'); // require AFTER mocking axios
+    api = require("./messages"); // require AFTER mocking axios
   };
 
   beforeEach(() => loadModule());
 
-  test('sanity: file loaded', () => {
+  test("sanity: file loaded", () => {
     expect(api).toBeTruthy();
   });
 

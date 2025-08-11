@@ -4,8 +4,5 @@
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
   },
-  "cSpell.words": [
-    "nent",
-    "Pjfd"
-  ]
+  "cSpell.words": ["nent", "Pjfd"]
 }
