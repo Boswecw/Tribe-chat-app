@@ -1,5 +1,5 @@
 // src/utils/groupMessages.js
-import { isSameDay } from './formatDate';
+import { isSameDay } from "./formatDate";
 
 /**
  * Groups consecutive messages by the same user, and optionally by date.
@@ -12,7 +12,8 @@ export function groupMessages(messages) {
     const current = messages[i];
     const prev = messages[i - 1];
 
-    const isSameSender = prev && current.participant?.uuid === prev.participant?.uuid;
+    const isSameSender =
+      prev && current.participant?.uuid === prev.participant?.uuid;
     const isSameDayFlag = prev && isSameDay(current.createdAt, prev.createdAt);
 
     grouped.push({

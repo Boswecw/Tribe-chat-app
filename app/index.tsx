@@ -1,7 +1,7 @@
 // app/index.tsx
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View } from 'react-native';
-import ChatScreen from '../src/screens/ChatScreen';
+import { StatusBar } from "expo-status-bar";
+import { StyleSheet, View } from "react-native";
+import ChatScreen from "../src/screens/ChatScreen";
 
 export default function Index() {
   return (
@@ -15,6 +15,6 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
 });

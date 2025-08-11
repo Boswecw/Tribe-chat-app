@@ -1,7 +1,7 @@
 // src/components/ReactionRow.jsx
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import emojis from '../constants/emojis';
+import React from "react";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import emojis from "../constants/emojis";
 
 const ReactionRow = ({ onReact }) => (
   <View style={styles.row}>
@@ -15,7 +15,7 @@ const ReactionRow = ({ onReact }) => (
 
 const styles = StyleSheet.create({
   row: {
-    flexDirection: 'row',
+    flexDirection: "row",
     marginTop: 6,
   },
   emoji: {

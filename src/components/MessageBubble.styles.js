@@ -1,13 +1,13 @@
-import { StyleSheet, Dimensions } from 'react-native';
+import { StyleSheet, Dimensions } from "react-native";
 
-const { width: screenWidth } = Dimensions.get('window');
+const { width: screenWidth } = Dimensions.get("window");
 
 // Create themed styles for the MessageBubble component
 export const createStyles = (theme) =>
   StyleSheet.create({
     container: {
       paddingHorizontal: theme.spacing.md,
-      width: '100%',
+      width: "100%",
     },
 
     containerGrouped: {
@@ -19,15 +19,15 @@ export const createStyles = (theme) =>
     },
 
     containerOwn: {
-      alignItems: 'flex-end',
+      alignItems: "flex-end",
     },
 
     header: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       marginBottom: theme.spacing.xs,
       gap: theme.spacing.sm,
-      width: '100%',
+      width: "100%",
     },
 
     name: {
@@ -38,7 +38,7 @@ export const createStyles = (theme) =>
     },
 
     time: {
-      marginLeft: 'auto',
+      marginLeft: "auto",
       fontSize: theme.typography.sizes.xs,
       color: theme.colors.textSecondary,
     },
@@ -47,14 +47,14 @@ export const createStyles = (theme) =>
       backgroundColor: theme.colors.surface,
       borderRadius: theme.borderRadius.lg,
       padding: theme.spacing.md,
-      position: 'relative',
+      position: "relative",
       maxWidth: screenWidth * 0.8,
-      alignSelf: 'flex-start',
+      alignSelf: "flex-start",
     },
 
     bubbleOwn: {
       backgroundColor: theme.colors.primary,
-      alignSelf: 'flex-end',
+      alignSelf: "flex-end",
     },
 
     text: {
@@ -71,7 +71,7 @@ export const createStyles = (theme) =>
       fontSize: theme.typography.sizes.xs,
       color: theme.colors.textMuted,
       marginTop: theme.spacing.xs,
-      fontStyle: 'italic',
+      fontStyle: "italic",
     },
 
     image: {
@@ -82,15 +82,15 @@ export const createStyles = (theme) =>
     },
 
     imageLoadingOverlay: {
-      position: 'absolute',
+      position: "absolute",
       top: theme.spacing.sm,
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.3)',
+      backgroundColor: "rgba(0, 0, 0, 0.3)",
       borderRadius: theme.borderRadius.md,
-      justifyContent: 'center',
-      alignItems: 'center',
+      justifyContent: "center",
+      alignItems: "center",
     },
 
     imageLoadingText: {
@@ -100,15 +100,15 @@ export const createStyles = (theme) =>
     },
 
     existingReactions: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
+      flexDirection: "row",
+      flexWrap: "wrap",
       marginTop: theme.spacing.sm,
       gap: theme.spacing.xs,
     },
 
     reactionBubble: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       backgroundColor: theme.colors.surfaceSecondary,
       borderRadius: theme.borderRadius.round,
       paddingHorizontal: theme.spacing.sm,
@@ -138,10 +138,10 @@ export const createStyles = (theme) =>
     },
 
     addReactionButton: {
-      position: 'absolute',
+      position: "absolute",
       top: theme.spacing.xs,
       right: theme.spacing.xs,
-      backgroundColor: 'rgba(255, 255, 255, 0.9)',
+      backgroundColor: "rgba(255, 255, 255, 0.9)",
       borderRadius: theme.borderRadius.round,
       paddingHorizontal: theme.spacing.sm,
       paddingVertical: theme.spacing.xs,
@@ -150,7 +150,7 @@ export const createStyles = (theme) =>
     },
 
     addReactionButtonDisabled: {
-      backgroundColor: 'rgba(200, 200, 200, 0.5)',
+      backgroundColor: "rgba(200, 200, 200, 0.5)",
       borderColor: theme.colors.border,
     },
 
@@ -173,7 +173,7 @@ export const createStyles = (theme) =>
     },
 
     replyToContainer: {
-      flexDirection: 'row',
+      flexDirection: "row",
       marginTop: theme.spacing.sm,
       marginLeft: theme.spacing.sm,
       backgroundColor: theme.colors.surfaceSecondary,
@@ -209,7 +209,7 @@ export const createStyles = (theme) =>
 
     statusContainer: {
       marginTop: theme.spacing.xs,
-      alignItems: 'flex-end',
+      alignItems: "flex-end",
     },
 
     statusText: {
@@ -227,4 +227,3 @@ export const createStyles = (theme) =>
   });
 
 export default createStyles;
-

@@ -1,6 +1,6 @@
 // src/hooks/useConnectionStatus.js
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { fetchServerInfo } from '../api/info';
+import { useState, useEffect, useRef, useCallback } from "react";
+import { fetchServerInfo } from "../api/info";
 
 const CONNECTION_CHECK_INTERVAL = 15000; // 15 seconds
 const RETRY_INTERVAL = 5000; // 5 seconds for retry when offline
@@ -12,7 +12,7 @@ const useConnectionStatus = () => {
   const [lastSyncTime, setLastSyncTime] = useState(null);
   const [retryCount, setRetryCount] = useState(0);
   const [isChecking, setIsChecking] = useState(false);
-  
+
   const intervalRef = useRef(null);
   const timeoutRef = useRef(null);
   const retryTimeoutRef = useRef(null);
@@ -37,9 +37,9 @@ const useConnectionStatus = () => {
   // Start regular connection checking - depends on clearAllTimers
   const startRegularChecking = useCallback(() => {
     clearAllTimers();
-    
+
     if (!isMountedRef.current) return;
-    
+
     intervalRef.current = setInterval(() => {
       if (isMountedRef.current && !isChecking) {
         // Use ref to avoid stale closure
@@ -54,22 +54,22 @@ const useConnectionStatus = () => {
   // Enhanced connection check with timeout and proper error handling
   const checkConnection = useCallback(async () => {
     if (!isMountedRef.current || isChecking) return;
-    
+
     setIsChecking(true);
-    
+
     try {
       // Create a promise that races between the API call and a timeout
       const connectionPromise = Promise.race([
         fetchServerInfo(),
         new Promise((_, reject) => {
           timeoutRef.current = setTimeout(() => {
-            reject(new Error('Connection timeout'));
+            reject(new Error("Connection timeout"));
           }, CONNECTION_TIMEOUT);
-        })
+        }),
       ]);
 
       const serverInfo = await connectionPromise;
-      
+
       // Clear timeout if API call succeeds
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
@@ -81,40 +81,43 @@ const useConnectionStatus = () => {
         setIsOnline(true);
         setLastSyncTime(new Date());
         setRetryCount(0);
-        
+
         // Start regular interval if not already running
         if (!intervalRef.current) {
           startRegularChecking();
         }
-        
-        console.log('✅ Connection check successful', serverInfo);
+
+        console.log("✅ Connection check successful", serverInfo);
       }
-      
     } catch (err) {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
       }
-      
+
       if (isMountedRef.current) {
-        console.warn('❌ Connection check failed:', err.message);
+        console.warn("❌ Connection check failed:", err.message);
         setIsOnline(false);
-        
+
         // Implement exponential backoff for retries
         if (retryCount < MAX_RETRY_ATTEMPTS) {
-          setRetryCount(prev => prev + 1);
+          setRetryCount((prev) => prev + 1);
           const retryDelay = RETRY_INTERVAL * Math.pow(2, retryCount); // Exponential backoff
-          
+
           retryTimeoutRef.current = setTimeout(() => {
             if (isMountedRef.current) {
               checkConnectionRef.current();
             }
           }, retryDelay);
-          
-          console.log(`🔄 Retrying connection check in ${retryDelay}ms (attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS})`);
+
+          console.log(
+            `🔄 Retrying connection check in ${retryDelay}ms (attempt ${retryCount + 1}/${MAX_RETRY_ATTEMPTS})`,
+          );
         } else {
           // Max retries reached, fall back to regular interval checking
-          console.log('⚠️ Max retry attempts reached, falling back to regular checking');
+          console.log(
+            "⚠️ Max retry attempts reached, falling back to regular checking",
+          );
           setRetryCount(0);
           startRegularChecking();
         }
@@ -140,10 +143,10 @@ const useConnectionStatus = () => {
   // Initialize connection checking on mount
   useEffect(() => {
     isMountedRef.current = true;
-    
+
     // Perform initial connection check
     checkConnection();
-    
+
     // Cleanup on unmount
     return () => {
       isMountedRef.current = false;
@@ -154,7 +157,7 @@ const useConnectionStatus = () => {
   // Handle browser/app visibility changes to pause/resume checking
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (typeof document !== 'undefined') {
+      if (typeof document !== "undefined") {
         if (document.hidden) {
           // App went to background, pause checking
           clearAllTimers();
@@ -168,11 +171,14 @@ const useConnectionStatus = () => {
     };
 
     // Add event listener for web platforms
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-      
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+
       return () => {
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        document.removeEventListener(
+          "visibilitychange",
+          handleVisibilityChange,
+        );
       };
     }
   }, [forceCheck, clearAllTimers]);
@@ -184,22 +190,26 @@ const useConnectionStatus = () => {
     isChecking,
     retryCount,
     forceCheck, // Allows components to manually trigger a connection check
-    
+
     // Computed values for UI feedback
     isRetrying: retryCount > 0 && retryCount < MAX_RETRY_ATTEMPTS,
     hasMaxRetriesReached: retryCount >= MAX_RETRY_ATTEMPTS,
-    
+
     // Connection quality indicator
-    connectionQuality: isOnline ? 'good' : (isChecking || retryCount > 0) ? 'poor' : 'offline',
-    
+    connectionQuality: isOnline
+      ? "good"
+      : isChecking || retryCount > 0
+        ? "poor"
+        : "offline",
+
     // Human-readable status
-    statusText: isOnline 
-      ? 'Connected' 
-      : isChecking 
-        ? 'Checking connection...' 
-        : retryCount > 0 
+    statusText: isOnline
+      ? "Connected"
+      : isChecking
+        ? "Checking connection..."
+        : retryCount > 0
           ? `Retrying... (${retryCount}/${MAX_RETRY_ATTEMPTS})`
-          : 'Offline'
+          : "Offline",
   };
 };
 

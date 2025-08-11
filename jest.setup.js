@@ -1,21 +1,32 @@
-/* eslint-env jest */
+// Gesture Handler test setup
+import "react-native-gesture-handler/jestSetup";
 
-// Extend matchers + fetch polyfill
-require('@testing-library/jest-native/extend-expect');
-require('whatwg-fetch');
+// Reanimated mock (must be before any tests)
+jest.mock("react-native-reanimated", () =>
+  require("react-native-reanimated/mock"),
+);
 
-// Reanimated mock (must be mocked before imports that use it)
-jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
+// RN 0.79: prevent DevMenu/TurboModule errors in Jest
+jest.mock("react-native/src/private/devmenu/DevMenu", () => ({}));
 
-// Call setup if exposed (no optional-chaining to keep ESLint calm)
-const reanimated = require('react-native-reanimated');
-if (reanimated && typeof reanimated.setUpTests === 'function') {
-  reanimated.setUpTests();
-}
+// RN 0.79: silence DevMenu/SettingsManager in Jest
+jest.mock("react-native/src/private/devmenu/DevMenu", () => ({}));
+jest.mock(
+  "react-native/src/private/specs_DEPRECATED/modules/NativeSettingsManager",
+  () => ({}),
+);
+jest.mock("react-native/Libraries/Settings/NativeSettingsManager", () => ({}));
+jest.mock("react-native/Libraries/Settings/Settings", () => ({
+  get: jest.fn(() => ({})),
+  set: jest.fn(),
+  watchKeys: jest.fn(),
+  addListener: jest.fn(),
+  removeListener: jest.fn(),
+  removeListeners: jest.fn(),
+}));
 
-// Silence noisy warnings while keeping others
-const originalWarn = console.warn.bind(console);
-jest.spyOn(console, 'warn').mockImplementation((msg, ...rest) => {
-  if (typeof msg === 'string' && msg.includes('useNativeDriver')) return;
-  originalWarn(msg, ...rest);
-});
+// (Optional) If you later see EventEmitter warnings, add this:
+// jest.mock('react-native/Libraries/EventEmitter/NativeEventEmitter', () => {
+//   const { EventEmitter } = require('events');
+//   return EventEmitter;
+// });

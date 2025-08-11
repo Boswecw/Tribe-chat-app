@@ -1,25 +1,25 @@
 // Enhanced theme system with dark mode support
 // src/constants/theme.js
-import { useColorScheme } from 'react-native';
+import { useColorScheme } from "react-native";
 
 export const lightTheme = {
   colors: {
-    primary: '#007AFF',
-    primaryLight: '#4A9EFF',
-    primaryDark: '#0056CC',
-    secondary: '#8E8E93',
-    background: '#FFFFFF',
-    surface: '#F2F2F7',
-    surfaceSecondary: '#FFFFFF',
-    text: '#000000',
-    textSecondary: '#8E8E93',
-    textMuted: '#C7C7CC',
-    border: '#C6C6C8',
-    borderLight: '#E5E5EA',
-    success: '#34C759',
-    warning: '#FF9500',
-    error: '#FF3B30',
-    info: '#007AFF',
+    primary: "#007AFF",
+    primaryLight: "#4A9EFF",
+    primaryDark: "#0056CC",
+    secondary: "#8E8E93",
+    background: "#FFFFFF",
+    surface: "#F2F2F7",
+    surfaceSecondary: "#FFFFFF",
+    text: "#000000",
+    textSecondary: "#8E8E93",
+    textMuted: "#C7C7CC",
+    border: "#C6C6C8",
+    borderLight: "#E5E5EA",
+    success: "#34C759",
+    warning: "#FF9500",
+    error: "#FF3B30",
+    info: "#007AFF",
   },
   spacing: {
     xs: 4,
@@ -47,29 +47,29 @@ export const lightTheme = {
       title: 24,
     },
     weights: {
-      regular: '400',
-      medium: '500',
-      semibold: '600',
-      bold: '700',
+      regular: "400",
+      medium: "500",
+      semibold: "600",
+      bold: "700",
     },
   },
   shadows: {
     sm: {
-      shadowColor: '#000',
+      shadowColor: "#000",
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: 0.05,
       shadowRadius: 2,
       elevation: 2,
     },
     md: {
-      shadowColor: '#000',
+      shadowColor: "#000",
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.1,
       shadowRadius: 4,
       elevation: 4,
     },
     lg: {
-      shadowColor: '#000',
+      shadowColor: "#000",
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.15,
       shadowRadius: 8,
@@ -82,22 +82,21 @@ export const darkTheme = {
   ...lightTheme,
   colors: {
     ...lightTheme.colors,
-    primary: '#0A84FF',
-    primaryLight: '#409CFF',
-    primaryDark: '#0056CC',
-    background: '#000000',
-    surface: '#1C1C1E',
-    surfaceSecondary: '#2C2C2E',
-    text: '#FFFFFF',
-    textSecondary: '#8E8E93',
-    textMuted: '#48484A',
-    border: '#38383A',
-    borderLight: '#48484A',
+    primary: "#0A84FF",
+    primaryLight: "#409CFF",
+    primaryDark: "#0056CC",
+    background: "#000000",
+    surface: "#1C1C1E",
+    surfaceSecondary: "#2C2C2E",
+    text: "#FFFFFF",
+    textSecondary: "#8E8E93",
+    textMuted: "#48484A",
+    border: "#38383A",
+    borderLight: "#48484A",
   },
 };
 
 export const useTheme = () => {
   const colorScheme = useColorScheme();
-  return colorScheme === 'dark' ? darkTheme : lightTheme;
+  return colorScheme === "dark" ? darkTheme : lightTheme;
 };
-

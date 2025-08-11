@@ -1,5 +1,5 @@
 // src/components/MessageInput.jsx
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   TextInput,
@@ -7,20 +7,16 @@ import {
   StyleSheet,
   TouchableOpacity,
   Text,
-} from 'react-native';
+} from "react-native";
 
-import useMessageStore from '../state/messageStore';
-import { sendMessage } from '../api/messages';
-import useReply from '../hooks/useReply';
+import useMessageStore from "../state/messageStore";
+import { sendMessage } from "../api/messages";
+import useReply from "../hooks/useReply";
 
 const MessageInput = () => {
-  const [text, setText] = useState('');
+  const [text, setText] = useState("");
   const { addMessage } = useMessageStore();
-  const {
-    replyTo,
-    isReplying,
-    cancelReply,
-  } = useReply();
+  const { replyTo, isReplying, cancelReply } = useReply();
 
   const handleSend = async () => {
     if (!text.trim()) return;
@@ -40,10 +36,10 @@ const MessageInput = () => {
       }
 
       addMessage(newMessage);
-      setText('');
+      setText("");
       cancelReply();
     } catch (err) {
-      console.error('❌ Error sending message:', err.message);
+      console.error("❌ Error sending message:", err.message);
     }
   };
 
@@ -51,7 +47,9 @@ const MessageInput = () => {
     <View style={styles.wrapper}>
       {isReplying && replyTo && (
         <View style={styles.replyPreview}>
-          <Text style={styles.replyLabel}>Replying to: {replyTo.participant?.name}</Text>
+          <Text style={styles.replyLabel}>
+            Replying to: {replyTo.participant?.name}
+          </Text>
           <Text style={styles.replyText} numberOfLines={1}>
             {replyTo.text}
           </Text>
@@ -64,7 +62,7 @@ const MessageInput = () => {
       <View style={styles.inputRow}>
         <TextInput
           style={styles.input}
-          placeholder={isReplying ? 'Write a reply…' : 'Type a message…'}
+          placeholder={isReplying ? "Write a reply…" : "Type a message…"}
           value={text}
           onChangeText={setText}
         />
@@ -78,38 +76,38 @@ const styles = StyleSheet.create({
   wrapper: {
     padding: 10,
     borderTopWidth: 1,
-    borderColor: '#ddd',
-    backgroundColor: '#fff',
+    borderColor: "#ddd",
+    backgroundColor: "#fff",
   },
   replyPreview: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: "#f0f0f0",
     borderRadius: 6,
     padding: 6,
     marginBottom: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   replyLabel: {
-    fontWeight: '600',
+    fontWeight: "600",
     marginRight: 6,
   },
   replyText: {
     flex: 1,
-    color: '#555',
+    color: "#555",
   },
   cancel: {
     marginLeft: 8,
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#888',
+    fontWeight: "bold",
+    color: "#888",
   },
   inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   input: {
     flex: 1,
-    borderColor: '#ccc',
+    borderColor: "#ccc",
     borderWidth: 1,
     borderRadius: 20,
     paddingHorizontal: 12,

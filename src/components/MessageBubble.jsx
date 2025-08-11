@@ -1,66 +1,89 @@
 // Enhanced MessageBubble.jsx - Clean version that passes ESLint
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
   Image,
   TouchableOpacity,
   Alert,
-  AccessibilityInfo
-} from 'react-native';
-import Avatar from './Avatar';
-import ReactionRow from './ReactionRow';
-import { formatTime } from '../utils/formatDate';
-import { useTheme } from '../constants/theme';
-import { createStyles } from './MessageBubble.styles';
+  AccessibilityInfo,
+} from "react-native";
+import Avatar from "./Avatar";
+import ReactionRow from "./ReactionRow";
+import { formatTime } from "../utils/formatDate";
+import { useTheme } from "../constants/theme";
+import { createStyles } from "./MessageBubble.styles";
 
-const MessageBubble = ({ message, isGrouped, onReact, onReactionPress, onParticipantPress }) => {
+const MessageBubble = ({
+  message,
+  isGrouped,
+  onReact,
+  onReactionPress,
+  onParticipantPress,
+}) => {
   const [showReactionRow, setShowReactionRow] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  
+
   const participant = message.participant;
-  const displayName = participant?.name || 'Unknown';
+  const displayName = participant?.name || "Unknown";
   const hasReactions = message.reactions && message.reactions.length > 0;
-  
+
   // Check if this is the current user's message
-  const isOwnMessage = participant?.uuid === 'you';
-  
+  const isOwnMessage = participant?.uuid === "you";
+
   // ✅ NEW: Check if message is still being sent or is temporary
-  const isMessageSending = message.status === 'sending' || message.uuid?.startsWith('temp-');
+  const isMessageSending =
+    message.status === "sending" || message.uuid?.startsWith("temp-");
   const reactionsDisabled = isMessageSending;
 
   // Memoize formatted time to prevent recalculation
-  const formattedTime = useMemo(() => formatTime(message.createdAt), [message.createdAt]);
-  
+  const formattedTime = useMemo(
+    () => formatTime(message.createdAt),
+    [message.createdAt],
+  );
+
   // Memoize accessibility label
   const accessibilityLabel = useMemo(() => {
     let label = `Message from ${displayName}, sent at ${formattedTime}: ${message.text}`;
-    if (message.editedAt) label += ' (edited)';
+    if (message.editedAt) label += " (edited)";
     if (hasReactions) label += ` with ${message.reactions.length} reactions`;
     return label;
-  }, [displayName, formattedTime, message.text, message.editedAt, hasReactions, message.reactions]);
+  }, [
+    displayName,
+    formattedTime,
+    message.text,
+    message.editedAt,
+    hasReactions,
+    message.reactions,
+  ]);
 
-  const handleReact = useCallback(async (emoji) => {
-    try {
-      if (onReact) {
-        await onReact(message.uuid, emoji);
-        AccessibilityInfo.announceForAccessibility(`Added ${emoji} reaction`);
+  const handleReact = useCallback(
+    async (emoji) => {
+      try {
+        if (onReact) {
+          await onReact(message.uuid, emoji);
+          AccessibilityInfo.announceForAccessibility(`Added ${emoji} reaction`);
+        }
+        setShowReactionRow(false);
+      } catch (error) {
+        console.error("Failed to add reaction:", error);
+        Alert.alert("Error", "Failed to add reaction. Please try again.");
+        AccessibilityInfo.announceForAccessibility("Failed to add reaction");
       }
-      setShowReactionRow(false);
-    } catch (error) {
-      console.error('Failed to add reaction:', error);
-      Alert.alert('Error', 'Failed to add reaction. Please try again.');
-      AccessibilityInfo.announceForAccessibility('Failed to add reaction');
-    }
-  }, [onReact, message.uuid]);
+    },
+    [onReact, message.uuid],
+  );
 
-  const handleReactionPress = useCallback((reaction) => {
-    if (onReactionPress) {
-      onReactionPress(message.uuid, reaction);
-    }
-  }, [onReactionPress, message.uuid]);
+  const handleReactionPress = useCallback(
+    (reaction) => {
+      if (onReactionPress) {
+        onReactionPress(message.uuid, reaction);
+      }
+    },
+    [onReactionPress, message.uuid],
+  );
 
   const handleParticipantPress = useCallback(() => {
     if (onParticipantPress && participant) {
@@ -72,24 +95,24 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress, onPartici
     // ✅ NEW: Prevent opening reactions on sending messages
     if (reactionsDisabled) {
       Alert.alert(
-        'Message Still Sending', 
-        'Please wait for the message to be sent before adding reactions.'
+        "Message Still Sending",
+        "Please wait for the message to be sent before adding reactions.",
       );
       return;
     }
 
-    setShowReactionRow(prev => {
+    setShowReactionRow((prev) => {
       const newState = !prev;
       AccessibilityInfo.announceForAccessibility(
-        newState ? 'Reaction options shown' : 'Reaction options hidden'
+        newState ? "Reaction options shown" : "Reaction options hidden",
       );
       return newState;
     });
   }, [reactionsDisabled]);
 
   const handleImagePress = useCallback(() => {
-    console.log('Image pressed:', message.image);
-    AccessibilityInfo.announceForAccessibility('Opening image preview');
+    console.log("Image pressed:", message.image);
+    AccessibilityInfo.announceForAccessibility("Opening image preview");
     // TODO: Implement image preview modal
   }, [message.image]);
 
@@ -99,15 +122,15 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress, onPartici
 
   const handleImageError = useCallback(() => {
     setImageLoading(false);
-    AccessibilityInfo.announceForAccessibility('Failed to load image');
+    AccessibilityInfo.announceForAccessibility("Failed to load image");
   }, []);
 
   return (
-    <View 
+    <View
       style={[
         styles.container,
         isGrouped ? styles.containerGrouped : styles.containerNotGrouped,
-        isOwnMessage && styles.containerOwn
+        isOwnMessage && styles.containerOwn,
       ]}
       accessible={true}
       accessibilityLabel={accessibilityLabel}
@@ -119,7 +142,7 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress, onPartici
             <Avatar participant={participant} size={32} />
           </TouchableOpacity>
           <TouchableOpacity onPress={handleParticipantPress}>
-            <Text 
+            <Text
               style={styles.name}
               accessible={true}
               accessibilityRole="text"
@@ -128,7 +151,7 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress, onPartici
               {displayName}
             </Text>
           </TouchableOpacity>
-          <Text 
+          <Text
             style={styles.time}
             accessible={true}
             accessibilityLabel={`Sent at ${formattedTime}`}
@@ -138,33 +161,27 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress, onPartici
         </View>
       )}
 
-      <View style={[
-        styles.bubble,
-        isOwnMessage && styles.bubbleOwn
-      ]}>
-        <Text 
-          style={[
-            styles.text,
-            isOwnMessage && styles.textOwn
-          ]}
+      <View style={[styles.bubble, isOwnMessage && styles.bubbleOwn]}>
+        <Text
+          style={[styles.text, isOwnMessage && styles.textOwn]}
           selectable={true}
           accessible={true}
           accessibilityRole="text"
         >
           {message.text}
         </Text>
-        
+
         {message.image && (
-          <TouchableOpacity 
-            onPress={handleImagePress} 
+          <TouchableOpacity
+            onPress={handleImagePress}
             activeOpacity={0.8}
             accessible={true}
             accessibilityRole="button"
             accessibilityLabel="View image attachment"
             accessibilityHint="Double tap to open image preview"
           >
-            <Image 
-              source={{ uri: message.image }} 
+            <Image
+              source={{ uri: message.image }}
               style={styles.image}
               resizeMode="cover"
               onLoad={handleImageLoad}
@@ -179,9 +196,9 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress, onPartici
             )}
           </TouchableOpacity>
         )}
-        
+
         {message.editedAt && (
-          <Text 
+          <Text
             style={styles.edited}
             accessible={true}
             accessibilityLabel="This message was edited"
@@ -192,7 +209,7 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress, onPartici
 
         {/* Display existing reactions */}
         {hasReactions && (
-          <View 
+          <View
             style={styles.existingReactions}
             accessible={true}
             accessibilityLabel={`${message.reactions.length} reactions on this message`}
@@ -202,20 +219,22 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress, onPartici
                 key={`${reaction.emoji}-${index}`}
                 style={[
                   styles.reactionBubble,
-                  reaction.isOwnReaction && styles.reactionBubbleActive
+                  reaction.isOwnReaction && styles.reactionBubbleActive,
                 ]}
                 onPress={() => handleReactionPress(reaction)}
                 activeOpacity={0.7}
                 accessible={true}
                 accessibilityRole="button"
-                accessibilityLabel={`${reaction.emoji} reaction, ${reaction.count} ${reaction.count === 1 ? 'person' : 'people'}`}
+                accessibilityLabel={`${reaction.emoji} reaction, ${reaction.count} ${reaction.count === 1 ? "person" : "people"}`}
                 accessibilityHint="Double tap to see who reacted"
               >
                 <Text style={styles.reactionEmoji}>{reaction.emoji}</Text>
-                <Text style={[
-                  styles.reactionCount,
-                  reaction.isOwnReaction && styles.reactionCountActive
-                ]}>
+                <Text
+                  style={[
+                    styles.reactionCount,
+                    reaction.isOwnReaction && styles.reactionCountActive,
+                  ]}
+                >
                   {reaction.count}
                 </Text>
               </TouchableOpacity>
@@ -224,10 +243,10 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress, onPartici
         )}
 
         {/* ✅ ENHANCED: Add reaction button with disabled state */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[
             styles.addReactionButton,
-            reactionsDisabled && styles.addReactionButtonDisabled
+            reactionsDisabled && styles.addReactionButtonDisabled,
           ]}
           onPress={toggleReactionRow}
           activeOpacity={reactionsDisabled ? 1 : 0.7}
@@ -235,21 +254,25 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress, onPartici
           accessible={true}
           accessibilityRole="button"
           accessibilityLabel={
-            reactionsDisabled 
+            reactionsDisabled
               ? "Reactions disabled while message is sending"
-              : (showReactionRow ? "Hide reaction options" : "Show reaction options")
+              : showReactionRow
+                ? "Hide reaction options"
+                : "Show reaction options"
           }
           accessibilityHint={
-            reactionsDisabled 
+            reactionsDisabled
               ? "This message is still being sent"
               : "Double tap to toggle reaction options"
           }
         >
-          <Text style={[
-            styles.addReactionText,
-            reactionsDisabled && styles.addReactionTextDisabled
-          ]}>
-            {reactionsDisabled ? '⏳' : (showReactionRow ? '✕' : '😊+')}
+          <Text
+            style={[
+              styles.addReactionText,
+              reactionsDisabled && styles.addReactionTextDisabled,
+            ]}
+          >
+            {reactionsDisabled ? "⏳" : showReactionRow ? "✕" : "😊+"}
           </Text>
         </TouchableOpacity>
       </View>
@@ -263,15 +286,16 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress, onPartici
 
       {/* Reply to message functionality */}
       {message.replyToMessage && (
-        <View 
+        <View
           style={styles.replyToContainer}
           accessible={true}
-          accessibilityLabel={`Replying to ${message.replyToMessage.participant?.name || 'Unknown'}: ${message.replyToMessage.text}`}
+          accessibilityLabel={`Replying to ${message.replyToMessage.participant?.name || "Unknown"}: ${message.replyToMessage.text}`}
         >
           <View style={styles.replyToLine} />
           <View style={styles.replyToContent}>
             <Text style={styles.replyToLabel}>
-              Replying to {message.replyToMessage.participant?.name || 'Unknown'}
+              Replying to{" "}
+              {message.replyToMessage.participant?.name || "Unknown"}
             </Text>
             <Text style={styles.replyToText} numberOfLines={2}>
               {message.replyToMessage.text}
@@ -281,20 +305,20 @@ const MessageBubble = ({ message, isGrouped, onReact, onReactionPress, onPartici
       )}
 
       {/* Message status indicator */}
-      {message.status && message.status !== 'sent' && (
+      {message.status && message.status !== "sent" && (
         <View style={styles.statusContainer}>
-          <Text 
+          <Text
             style={[
-              styles.statusText, 
-              message.status === 'failed' && styles.statusFailed,
-              message.status === 'sending' && styles.statusSending
+              styles.statusText,
+              message.status === "failed" && styles.statusFailed,
+              message.status === "sending" && styles.statusSending,
             ]}
             accessible={true}
             accessibilityLabel={`Message status: ${message.status}`}
           >
-            {message.status === 'sending' && '⏳ Sending...'}
-            {message.status === 'failed' && '❌ Failed to send'}
-            {message.status === 'deleted' && '🗑️ Deleted'}
+            {message.status === "sending" && "⏳ Sending..."}
+            {message.status === "failed" && "❌ Failed to send"}
+            {message.status === "deleted" && "🗑️ Deleted"}
           </Text>
         </View>
       )}

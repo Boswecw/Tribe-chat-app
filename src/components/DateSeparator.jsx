@@ -1,7 +1,7 @@
 // src/components/DateSeparator.jsx
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { formatDate } from '../utils/formatDate';
+import React from "react";
+import { View, Text, StyleSheet } from "react-native";
+import { formatDate } from "../utils/formatDate";
 
 const DateSeparator = ({ timestamp }) => {
   if (!timestamp) return null;
@@ -17,21 +17,21 @@ const DateSeparator = ({ timestamp }) => {
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginVertical: 10,
     paddingHorizontal: 16,
   },
   text: {
     fontSize: 12,
-    color: '#888',
+    color: "#888",
     marginHorizontal: 8,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   line: {
     flex: 1,
     height: 1,
-    backgroundColor: '#ccc',
+    backgroundColor: "#ccc",
   },
 });
 

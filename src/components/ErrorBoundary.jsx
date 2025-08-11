@@ -58,8 +58,12 @@ class ErrorBoundary extends React.Component {
           <View style={styles.content}>
             <Text style={styles.title}>Oops! Something went wrong</Text>
             <Text style={styles.message}>
+ codex/add-newline-at-end-of-affected-files
               We&apos;re sorry, but something unexpected happened. Please try
               again.
+              {
+                "We're sorry, but something unexpected happened. Please try again."
+              }
             </Text>
 
             {/* Show error details in development */}

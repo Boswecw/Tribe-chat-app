@@ -1,34 +1,10 @@
 {
+  "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "target": "ES2020",
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "allowJs": true,
-    "skipLibCheck": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
     "strict": true,
-    "forceConsistentCasingInFileNames": true,
-    "noFallthroughCasesInSwitch": true,
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
     "jsx": "react-jsx",
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"]
-    }
-    // If you're using Jest, uncomment:
-    // "types": ["jest", "react", "react-native"]
+    "types": ["jest", "react", "react-native"]
   },
-  "include": [
-    "src/**/*",
-    "App.jsx",
-    "*.ts",
-    "*.tsx",
-    "*.js",
-    "*.jsx"
-  ],
-  "exclude": ["node_modules", "web-build", "dist"]
+  "exclude": ["node_modules"],
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
 }
