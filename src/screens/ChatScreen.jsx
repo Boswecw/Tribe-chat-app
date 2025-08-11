@@ -6,7 +6,6 @@ import { useFocusEffect } from '@react-navigation/native';
 
 // Store imports
 import useMessageStore from '../state/messageStore';
-import useParticipantStore from '../state/participantStore';
 import useSessionStore from '../state/sessionStore';
 
 // API imports
@@ -93,7 +92,7 @@ class EnhancedErrorBoundary extends React.Component {
 const ChatScreen = () => {
   const { messages, setMessages, addReactionOptimistic, confirmReaction, revertReaction, clearStaleOptimisticUpdates } =
     useMessageStore();
-  const { participants } = useParticipantStore();
+  // Removed participants usage as groupMessages now only needs messages
   const { sessionUuid } = useSessionStore();
 
   const [bottomSheets, setBottomSheets] = useState({
@@ -114,12 +113,12 @@ const ChatScreen = () => {
   const processedMessages = useMemo(() => {
     if (!messages?.length) return [];
     try {
-      return [...groupMessages(messages, participants)].reverse();
+      return [...groupMessages(messages)].reverse();
     } catch (error) {
       console.error('Error processing messages:', error);
       return [];
     }
-  }, [messages, participants]);
+  }, [messages]);
 
   const handleAppStateChange = useCallback(
     nextAppState => {
