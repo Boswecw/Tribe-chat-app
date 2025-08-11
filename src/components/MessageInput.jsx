@@ -23,11 +23,12 @@ const MessageInput = () => {
   } = useReply();
 
   const handleSend = async () => {
-    if (!text.trim()) return;
+    const trimmed = text.trim();
+    if (!trimmed) return;
 
     try {
       const payload = {
-        text,
+        text: trimmed,
         ...(isReplying && replyTo ? { replyToMessage: replyTo.uuid } : {}),
       };
 
@@ -55,7 +56,11 @@ const MessageInput = () => {
           <Text style={styles.replyText} numberOfLines={1}>
             {replyTo.text}
           </Text>
-          <TouchableOpacity onPress={cancelReply}>
+          <TouchableOpacity
+            onPress={cancelReply}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel reply"
+          >
             <Text style={styles.cancel}>×</Text>
           </TouchableOpacity>
         </View>
@@ -67,8 +72,14 @@ const MessageInput = () => {
           placeholder={isReplying ? 'Write a reply…' : 'Type a message…'}
           value={text}
           onChangeText={setText}
+          multiline
+          accessibilityLabel="Message input"
         />
-        <Button title="Send" onPress={handleSend} />
+        <Button
+          title="Send"
+          onPress={handleSend}
+          accessibilityLabel="Send message"
+        />
       </View>
     </View>
   );
@@ -88,6 +99,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
   replyLabel: {
     fontWeight: '600',
@@ -105,7 +117,7 @@ const styles = StyleSheet.create({
   },
   inputRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
   },
   input: {
     flex: 1,
@@ -115,6 +127,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     marginRight: 8,
+    minHeight: 40,
+    maxHeight: 120,
+    backgroundColor: '#fff',
   },
 });
 
