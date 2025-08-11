@@ -52,11 +52,15 @@ class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
+      // Render fallback UI
       return (
         <View style={styles.container}>
           <View style={styles.content}>
             <Text style={styles.title}>Oops! Something went wrong</Text>
             <Text style={styles.message}>
+ codex/add-newline-at-end-of-affected-files
+              We&apos;re sorry, but something unexpected happened. Please try
+              again.
               {
                 "We're sorry, but something unexpected happened. Please try again."
               }
